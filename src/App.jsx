@@ -77,14 +77,9 @@ const habilidadesInicial = [
 ]
 
 const tiposAtendimento = [
-  'Atendimento ao cliente',
-  'Treinamento',
-  'Importação de relatório',
-  'Criação de relatório FR3',
-  'Parâmetros do sistema',
-  'Configuração de usuário',
-  'Configuração avançada',
-  'Suporte técnico',
+  'Atendimento ao cliente', 'Treinamento', 'Importação de relatório',
+  'Criação de relatório FR3', 'Parâmetros do sistema', 'Configuração de usuário',
+  'Configuração avançada', 'Suporte técnico',
 ]
 
 const estadosAtivos = [
@@ -97,11 +92,18 @@ const statusConfig = {
   lider:     { label: 'Ativa - Analista Líder',    cor: 'bg-emerald-400', badge: 'bg-emerald-950 text-emerald-400' },
   auxiliar:  { label: 'Ativa - Analista Auxiliar', cor: 'bg-blue-400',    badge: 'bg-blue-950 text-blue-400' },
   cancelado: { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
-  // compatibilidade registros antigos
   sucesso:   { label: 'Ativa - Analista Líder',    cor: 'bg-emerald-400', badge: 'bg-emerald-950 text-emerald-400' },
   inativo:   { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
   falha:     { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
 }
+
+const skillsDestaque = [
+  { nome: 'Firebird 2.5 / IBExpert', nivel: 85 },
+  { nome: 'FastReport 3 (FR3)', nivel: 82 },
+  { nome: 'ERP Ganso — Instalação', nivel: 90 },
+  { nome: 'NF-e / SEFAZ', nivel: 78 },
+  { nome: 'Correção de bugs', nivel: 83 },
+]
 
 function MapaBrasil() {
   return (
@@ -169,6 +171,190 @@ function MapaBrasil() {
   )
 }
 
+function ResumoExecutivo({ implantacoes, atendimentos, cases }) {
+  const lideres    = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').length
+  const auxiliares = implantacoes.filter(i => i.status === 'auxiliar').length
+  const canceladas = implantacoes.filter(i => ['cancelado','inativo','falha'].includes(i.status)).length
+  const receitaTotal = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').reduce((acc, i) => acc + (parseFloat(i.valor) || 0), 0)
+  const totalEstacoes = implantacoes.reduce((acc, i) => acc + (parseInt(i.estacoes) || 0), 0)
+  const taxa = implantacoes.length > 0 ? Math.round(((lideres + auxiliares) / implantacoes.length) * 100) : 0
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-lg font-bold">Resumo Executivo</h2>
+          <p className="text-sm text-gray-400">Dossiê profissional para avaliação de desempenho</p>
+        </div>
+        <button onClick={handlePrint}
+          className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+          ↓ Exportar PDF
+        </button>
+      </div>
+
+      {/* Conteúdo imprimível */}
+      <div id="resumo-print" className="space-y-6">
+
+        {/* Cabeçalho — identidade */}
+        <div className="bg-gradient-to-r from-emerald-900 to-gray-900 rounded-xl p-8 border border-emerald-800">
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl font-bold text-white">NN</span>
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">Nycolas Neves</h1>
+              <p className="text-emerald-400 font-semibold text-lg mt-1">Assistente de Implantação II</p>
+              <p className="text-gray-400 text-sm mt-1">Ganso Sistemas · Campo Grande, MS</p>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-xs text-emerald-400">Mai/2025 — presente · 1 ano e 4 meses</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Números principais */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-emerald-400">{lideres}</p>
+            <p className="text-xs text-gray-400 mt-2">Implantações como<br/>Analista Líder</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-blue-400">{auxiliares}</p>
+            <p className="text-xs text-gray-400 mt-2">Implantações como<br/>Analista Auxiliar</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-3xl font-bold text-emerald-400">
+              {receitaTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })}
+            </p>
+            <p className="text-xs text-gray-400 mt-2">Receita mensal<br/>gerada</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-emerald-400">{taxa}%</p>
+            <p className="text-xs text-gray-400 mt-2">Taxa de<br/>aproveitamento</p>
+          </div>
+        </div>
+
+        {/* Segunda linha de métricas */}
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-emerald-400">{totalEstacoes}</p>
+            <p className="text-xs text-gray-400 mt-2">Estações implantadas</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-emerald-400">{atendimentos.length}</p>
+            <p className="text-xs text-gray-400 mt-2">Atendimentos registrados</p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
+            <p className="text-4xl font-bold text-emerald-400">3</p>
+            <p className="text-xs text-gray-400 mt-2">Estados atendidos<br/>(MS, SP, MG)</p>
+          </div>
+        </div>
+
+        {/* Trajetória resumida */}
+        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+          <h3 className="font-semibold mb-4 text-sm text-gray-300">Trajetória na empresa</h3>
+          <div className="flex items-center gap-4">
+            <div className="flex-1 bg-gray-800 rounded-lg p-4 border border-gray-700">
+              <p className="text-xs text-gray-500 mb-1">Mai 2025 — Jan 2026</p>
+              <p className="font-semibold text-sm">Auxiliar de Implantação</p>
+              <p className="text-xs text-gray-400 mt-1">Instalação, suporte e primeiros atendimentos</p>
+            </div>
+            <div className="text-emerald-400 text-xl font-bold flex-shrink-0">→</div>
+            <div className="flex-1 bg-emerald-950 rounded-lg p-4 border border-emerald-800">
+              <p className="text-xs text-emerald-600 mb-1">Fev 2026 — atual</p>
+              <p className="font-semibold text-sm text-emerald-400">Assistente de Implantação II</p>
+              <p className="text-xs text-gray-400 mt-1">Promoção em menos de 9 meses</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Skills principais */}
+        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+          <h3 className="font-semibold mb-4 text-sm text-gray-300">Principais competências técnicas</h3>
+          <div className="space-y-3">
+            {skillsDestaque.map((s, i) => (
+              <div key={i}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-300">{s.nome}</span>
+                  <span className="text-emerald-400 font-semibold">{s.nivel}%</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-2">
+                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: `${s.nivel}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Cases destaque */}
+        {cases.length > 0 && (
+          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+            <h3 className="font-semibold mb-4 text-sm text-gray-300">Cases & Projetos desenvolvidos</h3>
+            <div className="space-y-3">
+              {cases.slice(0, 3).map((c, i) => (
+                <div key={i} className="flex items-start gap-3 border-b border-gray-800 pb-3 last:border-0 last:pb-0">
+                  <span className="text-emerald-400 font-bold text-sm flex-shrink-0">▸</span>
+                  <div>
+                    <p className="text-sm font-semibold">{c.titulo}</p>
+                    <p className="text-xs text-emerald-400">{c.cliente} · {c.tipo}</p>
+                    {c.impacto && <p className="text-xs text-gray-400 mt-0.5">{c.impacto}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Clientes ativos */}
+        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+          <h3 className="font-semibold mb-4 text-sm text-gray-300">Clientes implantados</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').map((i, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
+                <p className="text-xs text-gray-300">{i.cliente}</p>
+              </div>
+            ))}
+            {implantacoes.filter(i => i.status === 'auxiliar').map((i, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
+                <p className="text-xs text-gray-300">{i.cliente} <span className="text-blue-400">(aux.)</span></p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Rodapé */}
+        <div className="text-center py-4 border-t border-gray-800">
+          <p className="text-xs text-gray-500">Portfólio gerado em {new Date().toLocaleDateString('pt-BR')} · Nycolas Neves · Ganso Sistemas</p>
+        </div>
+      </div>
+
+      {/* CSS de impressão */}
+      <style>{`
+        @media print {
+          body { background: white !important; color: black !important; }
+          header, .no-print { display: none !important; }
+          #resumo-print { padding: 20px; }
+          .bg-gray-950, .bg-gray-900, .bg-gray-800 { background: #f9fafb !important; }
+          .text-white { color: #111 !important; }
+          .text-gray-400, .text-gray-500 { color: #666 !important; }
+          .text-emerald-400 { color: #059669 !important; }
+          .border-gray-800, .border-gray-700 { border-color: #e5e7eb !important; }
+          .bg-emerald-950 { background: #ecfdf5 !important; }
+          .bg-emerald-400 { background: #059669 !important; }
+          .bg-gray-800 { background: #f3f4f6 !important; }
+        }
+      `}</style>
+    </div>
+  )
+}
+
 export default function App() {
   const [implantacoes, setImplantacoes] = useState([])
   const [atendimentos, setAtendimentos] = useState([])
@@ -214,9 +400,7 @@ export default function App() {
   const total      = implantacoes.length
   const ativas     = lideres + auxiliares
   const taxa       = total > 0 ? Math.round((ativas / total) * 100) : 0
-  const receitaTotal = implantacoes
-    .filter(i => i.status === 'lider' || i.status === 'sucesso')
-    .reduce((acc, i) => acc + (parseFloat(i.valor) || 0), 0)
+  const receitaTotal = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').reduce((acc, i) => acc + (parseFloat(i.valor) || 0), 0)
 
   const filtradas = implantacoes.filter(i =>
     i.cliente?.toLowerCase().includes(busca.toLowerCase()) ||
@@ -330,12 +514,13 @@ export default function App() {
     { id: 'cases',         label: 'Cases' },
     { id: 'carreira',      label: 'Carreira' },
     { id: 'habilidades',   label: 'Habilidades' },
+    { id: 'resumo',        label: '📄 Resumo' },
     { id: 'adicionar',     label: '+ Adicionar' },
   ]
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between no-print">
         <div>
           <h1 className="text-xl font-bold text-white">Portfólio de Implantações</h1>
           <p className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
@@ -352,8 +537,7 @@ export default function App() {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Métricas — 3 cards */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-3 gap-4 mb-8 no-print">
           <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
             <p className="text-xs text-gray-400 mb-1">Total</p>
             <p className="text-3xl font-bold">{total}</p>
@@ -371,8 +555,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Abas */}
-        <div className="flex gap-1 mb-6 border-b border-gray-800 overflow-x-auto">
+        <div className="flex gap-1 mb-6 border-b border-gray-800 overflow-x-auto no-print">
           {abas.map(tab => (
             <button key={tab.id} onClick={() => setAba(tab.id)}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -384,6 +567,11 @@ export default function App() {
         </div>
 
         {loading && <div className="text-center py-20 text-gray-500">Carregando dados...</div>}
+
+        {/* Resumo Executivo */}
+        {aba === 'resumo' && (
+          <ResumoExecutivo implantacoes={implantacoes} atendimentos={atendimentos} cases={cases} />
+        )}
 
         {/* Visão Geral */}
         {!loading && aba === 'visao-geral' && (
@@ -433,9 +621,7 @@ export default function App() {
                 </div>
               </div>
             </div>
-
             <MapaBrasil />
-
             <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-800">
                 <h2 className="font-semibold">Todas as implantações</h2>
@@ -492,9 +678,7 @@ export default function App() {
                     </div>
                     <p className="font-semibold text-sm mb-1">{i.cliente}</p>
                     <p className="text-xs text-gray-500 mb-1">{i.cidade}</p>
-                    {i.estacoes > 0 && (
-                      <p className="text-xs text-gray-400 mb-2">🖥️ {i.estacoes} {i.estacoes === 1 ? 'estação' : 'estações'}</p>
-                    )}
+                    {i.estacoes > 0 && <p className="text-xs text-gray-400 mb-2">🖥️ {i.estacoes} {i.estacoes === 1 ? 'estação' : 'estações'}</p>}
                     {(i.status === 'lider' || i.status === 'sucesso') && (
                       <p className="text-lg font-bold text-emerald-400">
                         R$ {parseFloat(i.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -850,7 +1034,7 @@ export default function App() {
                   <div>
                     <label className="text-xs text-gray-400 mb-1 block">Estações</label>
                     <input type="number" value={form.estacoes} onChange={e => setForm({...form, estacoes: e.target.value})}
-                      placeholder="Nº de PCs com o sistema"
+                      placeholder="Nº de PCs"
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
                   </div>
                 </div>
