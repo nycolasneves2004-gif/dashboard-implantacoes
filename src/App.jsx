@@ -1,7 +1,63 @@
 import { useState, useEffect } from 'react'
-import { db } from './firebase'
+import { db, auth } from './firebase'
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+
+function TelaLogin() {
+  const [email, setEmail] = useState('')
+  const [senha, setSenha] = useState('')
+  const [erro, setErro] = useState('')
+  const [carregando, setCarregando] = useState(false)
+
+  const handleLogin = async (e) => {
+    e.preventDefault()
+    setErro('')
+    setCarregando(true)
+    try {
+      await signInWithEmailAndPassword(auth, email, senha)
+    } catch {
+      setErro('E-mail ou senha incorretos.')
+    }
+    setCarregando(false)
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-full bg-emerald-600 flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl font-bold text-white">NN</span>
+          </div>
+          <h1 className="text-2xl font-bold text-white">Portfólio de Implantações</h1>
+          <p className="text-gray-400 text-sm mt-1">Nycolas Neves · Ganso Sistemas</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
+          <h2 className="font-semibold mb-5 text-center">Acesso restrito</h2>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">E-mail</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com" required
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400 mb-1 block">Senha</label>
+              <input type="password" value={senha} onChange={e => setSenha(e.target.value)}
+                placeholder="••••••••" required
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+            </div>
+            {erro && <p className="text-red-400 text-xs text-center">{erro}</p>}
+            <button type="submit" disabled={carregando}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-colors">
+              {carregando ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const timelineInicial = [
   {
@@ -356,6 +412,7 @@ function ResumoExecutivo({ implantacoes, atendimentos, cases }) {
 }
 
 export default function App() {
+  const [usuario, setUsuario] = useState(undefined)
   const [implantacoes, setImplantacoes] = useState([])
   const [atendimentos, setAtendimentos] = useState([])
   const [cases, setCases] = useState([])
@@ -363,6 +420,11 @@ export default function App() {
   const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [habilidades, setHabilidades] = useState(habilidadesInicial)
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUsuario(u ?? null))
+    return () => unsub()
+  }, [])
   const [editandoHabilidade, setEditandoHabilidade] = useState(null)
   const [formHabilidade, setFormHabilidade] = useState({ nivel: 0, descricao: '' })
 
@@ -518,6 +580,14 @@ export default function App() {
     { id: 'adicionar',     label: '+ Adicionar' },
   ]
 
+  if (usuario === undefined) {
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <p className="text-gray-500 text-sm">Carregando...</p>
+    </div>
+  }
+
+  if (usuario === null) return <TelaLogin />
+
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between no-print">
@@ -528,11 +598,17 @@ export default function App() {
             Nycolas Neves · Ganso Sistemas · Campo Grande MS
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-gray-400">Receita ativa gerada</p>
-          <p className="text-2xl font-bold text-emerald-400">
-            R$ {receitaTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-          </p>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-xs text-gray-400">Receita ativa gerada</p>
+            <p className="text-2xl font-bold text-emerald-400">
+              R$ {receitaTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+          <button onClick={() => signOut(auth)}
+            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition-colors">
+            Sair
+          </button>
         </div>
       </header>
 
