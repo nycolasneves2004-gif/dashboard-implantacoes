@@ -49,11 +49,36 @@ const habilidadesInicial = [
   ]},
 ]
 
+function calcularTempo() {
+  const inicio = new Date(2025, 4, 1) // Mai 2025
+  const agora = new Date()
+  let anos = agora.getFullYear() - inicio.getFullYear()
+  let meses = agora.getMonth() - inicio.getMonth()
+  if (meses < 0) { anos--; meses += 12 }
+  if (anos > 0 && meses > 0) return `${anos} ano${anos>1?'s':''} e ${meses} ${meses===1?'mês':'meses'}`
+  if (anos > 0) return `${anos} ano${anos>1?'s':''}`
+  return `${meses} ${meses===1?'mês':'meses'}`
+}
+
 const tiposAtendimento = [
   'Atendimento ao cliente','Treinamento','Importação de relatório',
   'Criação de relatório FR3','Parâmetros do sistema','Configuração de usuário',
   'Configuração avançada','Suporte técnico',
 ]
+
+// Mapa de estados conhecidos com coordenadas SVG e cores
+const ESTADOS_CONFIG = {
+  'MS': { label: 'Mato Grosso do Sul', cor: '#19B887', cx: 220, cy: 260, polygon: '160,190 285,180 310,260 260,350 170,340 140,260', labelX: 203, labelY: 230 },
+  'SP': { label: 'São Paulo',          cor: '#4F8CFF', cx: 325, cy: 295, polygon: '290,270 390,265 440,320 370,370 290,325', labelX: 347, labelY: 319 },
+  'MG': { label: 'Minas Gerais',       cor: '#36D6A0', cx: 440, cy: 220, polygon: '340,160 480,140 540,210 490,290 390,270 340,210', labelX: 462, labelY: 209 },
+  'GO': { label: 'Goiás',              cor: '#F2B84B', cx: 300, cy: 175, polygon: '230,120 330,110 360,170 310,200 240,195', labelX: 295, labelY: 155 },
+  'PR': { label: 'Paraná',             cor: '#a78bfa', cx: 230, cy: 355, polygon: '180,330 290,325 295,385 220,400 170,375', labelX: 232, labelY: 360 },
+  'MT': { label: 'Mato Grosso',        cor: '#fb923c', cx: 185, cy: 155, polygon: '120,80 240,75 265,155 200,175 115,160', labelX: 185, labelY: 130 },
+  'RS': { label: 'Rio Grande do Sul',  cor: '#e879f9', cx: 230, cy: 430, polygon: '180,400 280,395 270,460 200,465 170,435', labelX: 225, labelY: 430 },
+  'RJ': { label: 'Rio de Janeiro',     cor: '#f472b6', cx: 460, cy: 310, polygon: '420,295 500,285 495,335 415,340', labelX: 458, labelY: 315 },
+  'SC': { label: 'Santa Catarina',     cor: '#67e8f9', cx: 230, cy: 395, polygon: '178,375 285,370 288,400 178,408', labelX: 228, labelY: 390 },
+  'BA': { label: 'Bahia',              cor: '#fbbf24', cx: 430, cy: 170, polygon: '370,120 490,110 510,200 440,230 370,195', labelX: 435, labelY: 160 },
+}
 
 const statusConfig = {
   lider:     { label: 'Ativa - Analista Líder',    cor: '#19B887', badge: 'bg-[#19B887]/10 text-[#19B887] border-[#19B887]/25' },
@@ -126,53 +151,61 @@ function TelaLogin() {
 
 function MapaRadar({ implantacoes, onInspecionar }) {
   const [filtro, setFiltro] = useState('all')
-  const [busca, setBusca] = useState('')
 
   const total = implantacoes.length
+
+  // Detecta estados dinamicamente dos clientes
   const porEstado = {}
   implantacoes.forEach(i => {
-    const uf = (i.cidade || '').split('-').pop()?.trim()
-    if (uf) porEstado[uf] = (porEstado[uf] || 0) + 1
+    const uf = (i.cidade || '').split('-').pop()?.trim().toUpperCase()
+    if (uf && uf.length === 2) porEstado[uf] = (porEstado[uf] || 0) + 1
   })
 
-  const filtradas = implantacoes.filter(i => {
-    const texto = (i.cliente + i.cidade).toLowerCase()
-    const matchBusca = texto.includes(busca.toLowerCase())
-    const matchFiltro = filtro === 'all' || (i.cidade || '').includes(`- ${filtro}`)
-    return matchBusca && matchFiltro
+  // Estados que têm clientes E estão no config
+  const estadosAtivos = Object.keys(porEstado).filter(uf => ESTADOS_CONFIG[uf])
+
+  // Cidades únicas por estado para os pins
+  const cidadesPorEstado = {}
+  implantacoes.forEach(i => {
+    const partes = (i.cidade || '').split('-')
+    if (partes.length < 2) return
+    const uf = partes.pop()?.trim().toUpperCase()
+    const cidade = partes.join('-').trim()
+    if (!cidadesPorEstado[uf]) cidadesPorEstado[uf] = {}
+    if (!cidadesPorEstado[uf][cidade]) cidadesPorEstado[uf][cidade] = []
+    cidadesPorEstado[uf][cidade].push(i)
   })
 
-  const receitaTotal = implantacoes.filter(i=>i.status==='lider'||i.status==='sucesso').reduce((a,i)=>a+(parseFloat(i.valor)||0),0)
-
-  const getCorPonto = (i) => {
-    if (i.status==='lider'||i.status==='sucesso') return '#19B887'
-    if (i.status==='auxiliar') return '#4F8CFF'
-    return '#E85D6A'
-  }
+  const receitaMS = implantacoes.filter(i=>(i.cidade||'').includes('- MS')&&(i.status==='lider'||i.status==='sucesso')).reduce((a,i)=>a+(parseFloat(i.valor)||0),0)
 
   return (
     <div className="rounded-2xl p-5 relative overflow-hidden flex flex-col" style={{backgroundColor:'#171A21',border:'1px solid #2A303A',minHeight:'520px'}}>
-      {/* Header do mapa */}
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3" style={{borderBottom:'1px solid #2A303A'}}>
         <div>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:'#19B887'}}></span>
             <h3 className="text-sm font-bold uppercase tracking-wide" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Alcance Geográfico Operacional</h3>
           </div>
-          <p className="text-xs mt-0.5" style={{color:'#707985'}}>Mapeamento em tempo real com radar sweep ativo (Centro-Oeste & Sudeste)</p>
+          <p className="text-xs mt-0.5" style={{color:'#707985'}}>Mapeamento dinâmico — atualiza automaticamente com novos clientes</p>
         </div>
-        <div className="flex items-center gap-1.5 p-1 rounded-xl text-xs" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>
-          {[{k:'all',l:`Todos (${total})`},{k:'MS',l:`MS (${porEstado['MS']||0})`},{k:'SP',l:`SP (${porEstado['SP']||0})`},{k:'MG',l:`MG (${porEstado['MG']||0})`}].map(f=>(
-            <button key={f.k} onClick={()=>setFiltro(f.k)}
-              className="px-2.5 py-1 rounded-lg transition font-mono"
-              style={filtro===f.k?{backgroundColor:'#171A21',color:'#19B887',border:'1px solid #2A303A'}:{color:'#707985'}}>
-              {f.l}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl text-xs flex-wrap" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>
+          <button onClick={()=>setFiltro('all')}
+            className="px-2.5 py-1 rounded-lg transition"
+            style={filtro==='all'?{backgroundColor:'#171A21',color:'#19B887',border:'1px solid #2A303A'}:{color:'#707985'}}>
+            Todos ({total})
+          </button>
+          {estadosAtivos.map(uf => (
+            <button key={uf} onClick={()=>setFiltro(uf)}
+              className="px-2.5 py-1 rounded-lg transition"
+              style={filtro===uf?{backgroundColor:'#171A21',color:ESTADOS_CONFIG[uf].cor,border:'1px solid #2A303A'}:{color:'#707985'}}>
+              {uf} ({porEstado[uf]})
             </button>
           ))}
         </div>
       </div>
 
-      {/* SVG do Mapa */}
+      {/* SVG */}
       <div className="relative flex-1 flex items-center justify-center py-4 rounded-xl my-2 overflow-hidden" style={{backgroundColor:'#12151B',border:'1px solid rgba(42,48,58,0.6)'}}>
         <svg viewBox="0 0 680 500" className="w-full max-w-xl h-auto" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -199,36 +232,39 @@ function MapaRadar({ implantacoes, onInspecionar }) {
           <rect width="680" height="500" fill="url(#tacticalGrid)"/>
           {/* Rings */}
           <g opacity="0.6">
-            <circle cx="220" cy="260" r="75" fill="none" stroke="#2A303A" strokeDasharray="3 3" strokeWidth="1"/>
+            <circle cx="220" cy="260" r="75"  fill="none" stroke="#2A303A" strokeDasharray="3 3" strokeWidth="1"/>
             <text x="220" y="180" textAnchor="middle" fill="#707985" fontSize="7.5" fontFamily="JetBrains Mono">150 KM</text>
             <circle cx="220" cy="260" r="160" fill="none" stroke="#2A303A" strokeDasharray="4 4" strokeWidth="1"/>
-            <text x="220" y="96" textAnchor="middle" fill="#707985" fontSize="7.5" fontFamily="JetBrains Mono">300 KM</text>
+            <text x="220" y="96"  textAnchor="middle" fill="#707985" fontSize="7.5" fontFamily="JetBrains Mono">300 KM</text>
             <circle cx="220" cy="260" r="255" fill="none" stroke="#2A303A" strokeDasharray="4 6" strokeWidth="1"/>
             <line x1="220" x2="220" y1="15" y2="485" stroke="#2A303A" strokeDasharray="2 3" strokeWidth="1" opacity="0.4"/>
-            <line x1="10" x2="670" y1="260" y2="260" stroke="#2A303A" strokeDasharray="2 3" strokeWidth="1" opacity="0.4"/>
+            <line x1="10"  x2="670" y1="260" y2="260" stroke="#2A303A" strokeDasharray="2 3" strokeWidth="1" opacity="0.4"/>
           </g>
-          {/* Fundo estados */}
-          <g opacity="0.45">
-            <polygon points="120,60 270,50 360,90 320,170 190,160 110,130" fill="#1C2028" stroke="#2A303A" strokeWidth="1.2"/>
-            <polygon points="170,360 280,350 350,430 250,460 170,410" fill="#1C2028" stroke="#2A303A" strokeWidth="1.2"/>
-            <polygon points="460,320 540,300 520,350 440,360" fill="#1C2028" stroke="#2A303A" strokeWidth="1"/>
+          {/* Fundo neutro */}
+          <g opacity="0.3">
+            <polygon points="120,60 270,50 360,90 320,170 190,160 110,130" fill="#1C2028" stroke="#2A303A" strokeWidth="1"/>
+            <polygon points="170,360 280,350 350,430 250,460 170,410" fill="#1C2028" stroke="#2A303A" strokeWidth="1"/>
           </g>
-          {/* Estados ativos */}
-          <g>
-            {/* MG */}
-            <polygon points="340,160 480,140 540,210 490,290 390,270 340,210" fill="#36D6A0" fillOpacity="0.10" stroke="#36D6A0" strokeDasharray="4,2" strokeWidth={filtro==='MG'?3:1.5}/>
-            <rect x="445" y="195" width="34" height="20" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
-            <text x="462" y="209" textAnchor="middle" fill="#36D6A0" fontSize="10" fontWeight="bold" fontFamily="JetBrains Mono">MG</text>
-            {/* MS */}
-            <polygon points="160,190 285,180 310,260 260,350 170,340 140,260" fill="#19B887" fillOpacity="0.16" stroke="#19B887" strokeWidth={filtro==='MS'?3:1.8}/>
-            <rect x="178" y="215" width="50" height="22" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
-            <text x="203" y="230" textAnchor="middle" fill="#19B887" fontSize="11" fontWeight="bold" fontFamily="JetBrains Mono">MS</text>
-            <text x="203" y="246" textAnchor="middle" fill="#A8AFB9" fontSize="8" fontFamily="JetBrains Mono">{porEstado['MS']||0} Clientes</text>
-            {/* SP */}
-            <polygon points="290,270 390,265 440,320 370,370 290,325" fill="#4F8CFF" fillOpacity="0.14" stroke="#4F8CFF" strokeWidth={filtro==='SP'?3:1.5}/>
-            <rect x="330" y="305" width="34" height="20" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
-            <text x="347" y="319" textAnchor="middle" fill="#4F8CFF" fontSize="10" fontWeight="bold" fontFamily="JetBrains Mono">SP</text>
-          </g>
+          {/* Estados com clientes — renderizados dinamicamente */}
+          {estadosAtivos.map(uf => {
+            const cfg = ESTADOS_CONFIG[uf]
+            const qtd = porEstado[uf] || 0
+            const ativo = filtro === 'all' || filtro === uf
+            return (
+              <g key={uf} onClick={()=>setFiltro(uf)} className="cursor-pointer" style={{opacity: ativo ? 1 : 0.3}}>
+                <polygon
+                  points={cfg.polygon}
+                  fill={cfg.cor} fillOpacity="0.14"
+                  stroke={cfg.cor}
+                  strokeWidth={filtro===uf ? 3 : 1.5}
+                  strokeDasharray={uf==='MG'?'4,2':'none'}
+                />
+                <rect x={cfg.labelX - 17} y={cfg.labelY - 14} width="44" height="20" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
+                <text x={cfg.labelX} y={cfg.labelY} textAnchor="middle" fill={cfg.cor} fontSize="10" fontWeight="bold" fontFamily="JetBrains Mono">{uf}</text>
+                {qtd > 0 && <text x={cfg.labelX} y={cfg.labelY + 14} textAnchor="middle" fill="#A8AFB9" fontSize="8" fontFamily="JetBrains Mono">{qtd} cli.</text>}
+              </g>
+            )
+          })}
           {/* Radar sweep */}
           <g clipPath="url(#radarSweepClip)">
             <circle cx="220" cy="260" r="180" fill="url(#hqGlowGrad)"/>
@@ -239,63 +275,60 @@ function MapaRadar({ implantacoes, onInspecionar }) {
               <circle cx="488" cy="260" r="2.5" fill="#36D6A0" opacity="0.8"/>
             </g>
           </g>
-          {/* Arcos de conexão */}
-          <g opacity="0.5">
-            <line x1="220" y1="260" x2="205" y2="285" stroke="#19B887" strokeDasharray="3,3" strokeWidth="1.2"/>
-            <path d="M 220 260 Q 265 268 325 295" fill="none" stroke="#4F8CFF" strokeDasharray="5,4" strokeWidth="1.4"/>
-            <path d="M 220 260 Q 320 180 440 220" fill="none" stroke="#36D6A0" strokeDasharray="6,4" strokeWidth="1.4"/>
-          </g>
-          {/* Campo Grande HQ */}
-          <g transform="translate(220,260)" className="cursor-pointer" onClick={()=>onInspecionar(null)}>
+          {/* Pino HQ Campo Grande */}
+          <g transform="translate(220,260)" className="cursor-pointer">
             <circle r="6" fill="#19B887" stroke="#0F1115" strokeWidth="2"/>
             <circle r="2" fill="#0F1115"/>
-            <text x="12" y="4" fill="#F1F3F5" fontSize="11" fontWeight="700" fontFamily="Space Grotesk">Campo Grande (HQ)</text>
+            <text x="12" y="4"  fill="#F1F3F5" fontSize="11" fontWeight="700" fontFamily="Space Grotesk">Campo Grande (HQ)</text>
             <text x="12" y="16" fill="#19B887" fontSize="9" fontFamily="JetBrains Mono">
-              {(porEstado['MS']||0)} Clientes · R$ {implantacoes.filter(i=>(i.cidade||'').includes('MS')&&(i.status==='lider'||i.status==='sucesso')).reduce((a,i)=>a+(parseFloat(i.valor)||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+              {porEstado['MS']||0} Clientes · R$ {receitaMS.toLocaleString('pt-BR',{minimumFractionDigits:2})}
             </text>
           </g>
-          {/* Sidrolândia */}
-          <g transform="translate(195,285)" className="cursor-pointer">
-            <circle r="5" fill="#19B887" stroke="#0F1115" strokeWidth="1.5"/>
-            <text x="-10" y="18" textAnchor="end" fill="#F1F3F5" fontSize="9.5" fontWeight="600" fontFamily="Space Grotesk">Sidrolândia</text>
-          </g>
-          {/* Presidente Prudente */}
-          <g transform="translate(325,295)" className="cursor-pointer">
-            <circle r="5" fill="#4F8CFF" stroke="#0F1115" strokeWidth="1.5"/>
-            <text x="10" y="-4" fill="#F1F3F5" fontSize="10" fontWeight="600" fontFamily="Space Grotesk">Pres. Prudente</text>
-            <text x="10" y="8" fill="#4F8CFF" fontSize="8.5" fontFamily="JetBrains Mono">{porEstado['SP']||0} Clientes</text>
-          </g>
-          {/* Patrocínio */}
-          <g transform="translate(440,220)" className="cursor-pointer">
-            <circle r="5" fill="#36D6A0" stroke="#0F1115" strokeWidth="1.5"/>
-            <text x="12" y="2" fill="#F1F3F5" fontSize="10" fontWeight="600" fontFamily="Space Grotesk">Patrocínio</text>
-          </g>
+          {/* Pins das cidades por estado */}
+          {estadosAtivos.filter(uf=>uf!=='MS').map(uf => {
+            const cfg = ESTADOS_CONFIG[uf]
+            return (
+              <g key={`pin-${uf}`} transform={`translate(${cfg.cx},${cfg.cy})`} className="cursor-pointer">
+                <circle r="5" fill={cfg.cor} stroke="#0F1115" strokeWidth="1.5"/>
+                <text x="10" y="2"  fill="#F1F3F5" fontSize="10" fontWeight="600" fontFamily="Space Grotesk">{cfg.label.split(' ')[0]}</text>
+                <text x="10" y="14" fill={cfg.cor} fontSize="8.5" fontFamily="JetBrains Mono">{porEstado[uf]} cli.</text>
+              </g>
+            )
+          })}
+          {/* Arcos de conexão dinâmicos */}
+          {estadosAtivos.filter(uf=>uf!=='MS'&&ESTADOS_CONFIG[uf]).map(uf => {
+            const cfg = ESTADOS_CONFIG[uf]
+            return <path key={`arco-${uf}`} d={`M 220 260 Q ${(220+cfg.cx)/2} ${Math.min(220,cfg.cy)-20} ${cfg.cx} ${cfg.cy}`} fill="none" stroke={cfg.cor} strokeDasharray="5,4" strokeWidth="1.2" opacity="0.4"/>
+          })}
         </svg>
         {/* Legenda */}
         <div className="absolute bottom-3 left-4 p-2.5 rounded-xl text-xs space-y-1.5" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>
-          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span><span style={{color:'#A8AFB9'}}>Base Ativa (Líder)</span></div>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span><span style={{color:'#A8AFB9'}}>Base Ativa</span></div>
           <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#E85D6A'}}></span><span style={{color:'#A8AFB9'}}>Cancelada</span></div>
-          <div className="flex items-center gap-2"><span className="w-3 h-0.5" style={{backgroundColor:'#4F8CFF'}}></span><span style={{color:'#707985'}}>Rotas de Suporte</span></div>
+          <div className="flex items-center gap-2"><span className="w-3 h-0.5" style={{backgroundColor:'#4F8CFF'}}></span><span style={{color:'#707985'}}>Rota de Suporte</span></div>
         </div>
       </div>
 
-      {/* Cards de estado */}
-      <div className="grid grid-cols-3 gap-2.5 pt-3" style={{borderTop:'1px solid #2A303A'}}>
-        {[{uf:'MS',label:'Mato Grosso do Sul',cor:'#19B887'},{uf:'SP',label:'São Paulo',cor:'#4F8CFF'},{uf:'MG',label:'Minas Gerais',cor:'#36D6A0'}].map(e=>(
-          <div key={e.uf} onClick={()=>setFiltro(e.uf)} className="p-2.5 rounded-xl flex items-center justify-between cursor-pointer transition"
-            style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
-            <div>
-              <span className="text-xs font-mono font-semibold" style={{color:e.cor,fontSize:'10px',fontFamily:'JetBrains Mono'}}>{e.label}</span>
-              <p className="text-sm font-bold font-mono" style={{color:'#F1F3F5'}}>{porEstado[e.uf]||0} Clientes</p>
+      {/* Cards de estado dinâmicos */}
+      <div className={`grid gap-2.5 pt-3`} style={{borderTop:'1px solid #2A303A',gridTemplateColumns:`repeat(${Math.min(estadosAtivos.length,4)}, 1fr)`}}>
+        {estadosAtivos.map(uf => {
+          const cfg = ESTADOS_CONFIG[uf]
+          const qtd = porEstado[uf] || 0
+          return (
+            <div key={uf} onClick={()=>setFiltro(uf)} className="p-2.5 rounded-xl flex items-center justify-between cursor-pointer transition"
+              style={{backgroundColor:'#1C2028',border:`1px solid ${filtro===uf?cfg.cor+'60':'#2A303A'}`}}>
+              <div>
+                <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:cfg.cor,fontWeight:'600'}}>{cfg.label.split(' ').slice(0,2).join(' ')}</span>
+                <p className="text-sm font-bold" style={{color:'#F1F3F5',fontFamily:'JetBrains Mono'}}>{qtd} {qtd===1?'Cliente':'Clientes'}</p>
+              </div>
+              <span style={{fontSize:'12px',color:cfg.cor,fontFamily:'JetBrains Mono',fontWeight:'bold'}}>
+                {total > 0 ? Math.round((qtd/total)*100) : 0}%
+              </span>
             </div>
-            <span className="text-xs font-mono" style={{color:e.cor,fontFamily:'JetBrains Mono'}}>
-              {total > 0 ? Math.round(((porEstado[e.uf]||0)/total)*100) : 0}%
-            </span>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {/* CSS do radar */}
       <style>{`
         .radar-beam { animation: radarSweepSpin 9s linear infinite; transform-origin: 220px 260px; pointer-events: none; }
         @keyframes radarSweepSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -541,7 +574,7 @@ export default function App() {
                     <div className="flex flex-wrap items-center gap-3 pt-1 text-xs" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>
                       <span className="flex items-center gap-1.5" style={{color:'#19B887'}}><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span>Mai/2025 — presente</span>
                       <span>•</span>
-                      <span>Tempo: <strong style={{color:'#F1F3F5'}}>1 ano e 4 meses</strong></span>
+                      <span>Tempo de atuação: <strong style={{color:'#F1F3F5'}}>{calcularTempo()}</strong></span>
                       <span>•</span>
                       <span>Especialidade: <strong style={{color:'#F1F3F5'}}>ERP & Varejo Alimentício / Autopeças</strong></span>
                     </div>
@@ -1010,18 +1043,39 @@ export default function App() {
                     <p className="text-sm mt-1" style={{color:'#A8AFB9'}}>Ganso Sistemas · Campo Grande, MS</p>
                     <div className="flex items-center gap-2 mt-2">
                       <span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:'#19B887'}}></span>
-                      <span className="text-xs" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>Mai/2025 — presente · 1 ano e 4 meses</span>
+                      <span className="text-xs" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>Mai/2025 — presente · {calcularTempo()}</span>
                     </div>
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[{v:lideres,l:'Implantações como\nAnalista Líder',c:'#19B887'},{v:auxiliares,l:'Implantações como\nAnalista Auxiliar',c:'#4F8CFF'},{v:`R$${(receitaTotal/1000).toFixed(1)}k`,l:'Receita mensal\ngerada',c:'#19B887'},{v:`${taxa}%`,l:'Taxa de\naproveitamento',c:'#19B887'}].map((m,i)=>(
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {[
+                  {v:lideres,    l:'Implantações como\nAnalista Líder',    c:'#19B887'},
+                  {v:`R$${(receitaTotal/1000).toFixed(1)}k`, l:'Receita mensal\ngerada', c:'#19B887'},
+                  {v:`${taxa}%`, l:'Taxa de\naproveitamento',              c:'#19B887'},
+                ].map((m,i)=>(
                   <div key={i} className="p-5 rounded-2xl text-center" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
                     <p className="text-4xl font-bold" style={{color:m.c,fontFamily:'JetBrains Mono'}}>{m.v}</p>
                     <p className="text-xs mt-2 whitespace-pre-line" style={{color:'#707985'}}>{m.l}</p>
                   </div>
                 ))}
+              </div>
+              {/* Card destaque — volume de casos */}
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'rgba(25,184,135,0.05)',border:'1px solid rgba(25,184,135,0.25)'}}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p style={{fontSize:'11px',fontFamily:'JetBrains Mono',color:'#19B887',textTransform:'uppercase',letterSpacing:'0.05em'}}>Volume de Atendimentos na Empresa</p>
+                    <p className="text-4xl font-bold mt-1" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>~500</p>
+                    <p className="text-sm mt-1" style={{color:'#A8AFB9'}}>casos abertos e resolvidos ao longo da trajetória na Ganso Sistemas</p>
+                  </div>
+                  <div className="text-right">
+                    <p style={{fontSize:'11px',color:'#707985',fontFamily:'JetBrains Mono'}}>Novos casos sendo</p>
+                    <p style={{fontSize:'11px',color:'#707985',fontFamily:'JetBrains Mono'}}>registrados detalhadamente</p>
+                    <p className="mt-2 text-xs px-3 py-1 rounded-lg inline-block" style={{backgroundColor:'rgba(25,184,135,0.1)',color:'#19B887',border:'1px solid rgba(25,184,135,0.2)',fontFamily:'JetBrains Mono'}}>
+                      {atendimentos.length} lançados até agora
+                    </p>
+                  </div>
+                </div>
               </div>
               <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
                 <h3 className="font-semibold mb-4 text-sm" style={{color:'#A8AFB9'}}>Trajetória na empresa</h3>
