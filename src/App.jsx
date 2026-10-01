@@ -2,7 +2,69 @@ import { useState, useEffect } from 'react'
 import { db, auth } from './firebase'
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth'
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+// ─── DADOS ESTÁTICOS ────────────────────────────────────────────────────────
+
+const timelineInicial = [
+  {
+    cargo: 'Auxiliar de Implantação', empresa: 'Ganso Sistemas',
+    inicio: 'Mai 2025', fim: 'Jan 2026', atual: false,
+    descricao: 'Início na área de TI/sistemas. Atuação em instalação, configuração e suporte ao ERP Ganso em clientes dos setores de varejo, oficinas e auto peças.',
+    marcos: ['Instalação e configuração do ERP em ambientes de produção','Diagnóstico e correção de erros de DLL e estrutura do sistema','Primeiros atendimentos técnicos a clientes']
+  },
+  {
+    cargo: 'Assistente de Implantação II', empresa: 'Ganso Sistemas',
+    inicio: 'Fev 2026', fim: null, atual: true,
+    descricao: 'Promoção após menos de 9 meses de empresa. Responsável por implantações completas, customização de relatórios FR3, administração de banco Firebird e suporte técnico avançado.',
+    marcos: ['Personalização de layouts FR3 e confecção de relatórios sob demanda','Administração de banco Firebird 2.5 via IBExpert','Atendimento autônomo a clientes em múltiplos estados (MS, SP, MG)','Configuração fiscal: NF-e, SEFAZ, CSOSN, boleto, DAS']
+  },
+]
+
+const habilidadesInicial = [
+  { categoria: 'Banco de Dados', icone: '🗄️', itens: [
+    { nome: 'Firebird 2.5', nivel: 85, descricao: 'Administração via IBExpert, consultas SQL, diagnóstico e correção de inconsistências' },
+    { nome: 'IBExpert', nivel: 80, descricao: 'Ferramenta principal para gestão e análise do banco de dados dos clientes' },
+  ]},
+  { categoria: 'Relatórios & Layouts', icone: '📊', itens: [
+    { nome: 'FastReport 3 (FR3)', nivel: 82, descricao: 'Personalização e confecção de relatórios sob demanda para clientes' },
+    { nome: 'Layouts personalizados', nivel: 80, descricao: 'NF-e, boletos, cupons, pedidos e outros documentos fiscais' },
+  ]},
+  { categoria: 'ERP Ganso', icone: '⚙️', itens: [
+    { nome: 'Instalação & Configuração', nivel: 90, descricao: 'Deploy completo do sistema em ambiente do cliente' },
+    { nome: 'Estrutura do sistema', nivel: 85, descricao: 'Conhecimento sobre DLLs, pastas, dependências e arquitetura' },
+    { nome: 'Correção de bugs', nivel: 83, descricao: 'Diagnóstico e resolução de erros de sistema' },
+    { nome: 'GansoPDV', nivel: 80, descricao: 'Configuração e suporte ao módulo de frente de caixa' },
+  ]},
+  { categoria: 'Fiscal & Tributário', icone: '📋', itens: [
+    { nome: 'NF-e / SEFAZ', nivel: 78, descricao: 'Configuração de emissão de nota fiscal eletrônica' },
+    { nome: 'CSOSN / PMZ / DAS', nivel: 75, descricao: 'Configuração tributária para regimes Simples Nacional' },
+    { nome: 'Boleto & Financeiro', nivel: 75, descricao: 'Configuração de carteiras de cobrança e integração bancária' },
+  ]},
+  { categoria: 'Desenvolvimento', icone: '💻', itens: [
+    { nome: 'React + Vite', nivel: 65, descricao: 'Desenvolvimento deste portal' },
+    { nome: 'JavaScript', nivel: 60, descricao: 'Lógica de frontend, manipulação de dados' },
+    { nome: 'Firebase / Firestore', nivel: 62, descricao: 'Banco de dados em tempo real e autenticação' },
+    { nome: 'Git & GitHub', nivel: 58, descricao: 'Versionamento de código e deploy via Vercel' },
+  ]},
+]
+
+const tiposAtendimento = [
+  'Atendimento ao cliente','Treinamento','Importação de relatório',
+  'Criação de relatório FR3','Parâmetros do sistema','Configuração de usuário',
+  'Configuração avançada','Suporte técnico',
+]
+
+const statusConfig = {
+  lider:     { label: 'Ativa - Analista Líder',    cor: '#19B887', badge: 'bg-[#19B887]/10 text-[#19B887] border-[#19B887]/25' },
+  auxiliar:  { label: 'Ativa - Analista Auxiliar', cor: '#4F8CFF', badge: 'bg-[#4F8CFF]/10 text-[#4F8CFF] border-[#4F8CFF]/25' },
+  cancelado: { label: 'Cancelada',                 cor: '#E85D6A', badge: 'bg-[#E85D6A]/10 text-[#E85D6A] border-[#E85D6A]/25' },
+  sucesso:   { label: 'Ativa - Analista Líder',    cor: '#19B887', badge: 'bg-[#19B887]/10 text-[#19B887] border-[#19B887]/25' },
+  inativo:   { label: 'Cancelada',                 cor: '#E85D6A', badge: 'bg-[#E85D6A]/10 text-[#E85D6A] border-[#E85D6A]/25' },
+  falha:     { label: 'Cancelada',                 cor: '#E85D6A', badge: 'bg-[#E85D6A]/10 text-[#E85D6A] border-[#E85D6A]/25' },
+}
+
+// ─── TELA DE LOGIN ──────────────────────────────────────────────────────────
 
 function TelaLogin() {
   const [email, setEmail] = useState('')
@@ -23,33 +85,34 @@ function TelaLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4" style={{backgroundColor:'#0F1115'}}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-full bg-emerald-600 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl font-bold text-white">NN</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white">Portfólio de Implantações</h1>
-          <p className="text-gray-400 text-sm mt-1">Nycolas Neves · Ganso Sistemas</p>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl font-bold" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#19B887',fontFamily:'Space Grotesk'}}>NN</div>
+          <h1 className="text-2xl font-bold text-white" style={{fontFamily:'Space Grotesk'}}>Portfólio de Implantações</h1>
+          <p className="text-sm mt-1" style={{color:'#707985'}}>Nycolas Neves · Ganso Sistemas</p>
         </div>
-        <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-          <h2 className="font-semibold mb-5 text-center">Acesso restrito</h2>
+        <div className="rounded-2xl p-6" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+          <h2 className="font-semibold mb-5 text-center text-sm uppercase tracking-wider" style={{color:'#A8AFB9',fontFamily:'JetBrains Mono'}}>Acesso Restrito</h2>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">E-mail</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="seu@email.com" required
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+              <label className="text-xs mb-1 block" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>E-mail</label>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@email.com" required
+                className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition"
+                style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#F1F3F5'}}
+                onFocus={e=>e.target.style.borderColor='#19B887'} onBlur={e=>e.target.style.borderColor='#2A303A'}/>
             </div>
             <div>
-              <label className="text-xs text-gray-400 mb-1 block">Senha</label>
-              <input type="password" value={senha} onChange={e => setSenha(e.target.value)}
-                placeholder="••••••••" required
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+              <label className="text-xs mb-1 block" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>Senha</label>
+              <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} placeholder="••••••••" required
+                className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition"
+                style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#F1F3F5'}}
+                onFocus={e=>e.target.style.borderColor='#19B887'} onBlur={e=>e.target.style.borderColor='#2A303A'}/>
             </div>
-            {erro && <p className="text-red-400 text-xs text-center">{erro}</p>}
+            {erro && <p className="text-xs text-center" style={{color:'#E85D6A'}}>{erro}</p>}
             <button type="submit" disabled={carregando}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg transition-colors">
+              className="w-full font-bold py-2.5 rounded-xl transition text-sm"
+              style={{backgroundColor:'#19B887',color:'#0F1115',opacity:carregando?0.6:1}}>
               {carregando ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
@@ -59,357 +122,189 @@ function TelaLogin() {
   )
 }
 
-const timelineInicial = [
-  {
-    cargo: 'Auxiliar de Implantação',
-    empresa: 'Ganso Sistemas',
-    inicio: 'Mai 2025',
-    fim: 'Jan 2026',
-    atual: false,
-    descricao: 'Início na área de TI/sistemas. Atuação em instalação, configuração e suporte ao ERP Ganso em clientes dos setores de varejo, oficinas e auto peças.',
-    marcos: [
-      'Instalação e configuração do ERP em ambientes de produção',
-      'Diagnóstico e correção de erros de DLL e estrutura do sistema',
-      'Primeiros atendimentos técnicos a clientes',
-    ]
-  },
-  {
-    cargo: 'Assistente de Implantação II',
-    empresa: 'Ganso Sistemas',
-    inicio: 'Fev 2026',
-    fim: null,
-    atual: true,
-    descricao: 'Promoção após menos de 9 meses de empresa. Responsável por implantações completas, customização de relatórios FR3, administração de banco Firebird e suporte técnico avançado.',
-    marcos: [
-      'Personalização de layouts FR3 e confecção de relatórios sob demanda',
-      'Administração de banco Firebird 2.5 via IBExpert',
-      'Atendimento autônomo a clientes em múltiplos estados (MS, SP, MG)',
-      'Configuração fiscal: NF-e, SEFAZ, CSOSN, boleto, DAS',
-    ]
-  },
-]
+// ─── MAPA RADAR ─────────────────────────────────────────────────────────────
 
-const habilidadesInicial = [
-  {
-    categoria: 'Banco de Dados', icone: '🗄️',
-    itens: [
-      { nome: 'Firebird 2.5', nivel: 85, descricao: 'Administração via IBExpert, consultas SQL, diagnóstico e correção de inconsistências' },
-      { nome: 'IBExpert', nivel: 80, descricao: 'Ferramenta principal para gestão e análise do banco de dados dos clientes' },
-    ]
-  },
-  {
-    categoria: 'Relatórios & Layouts', icone: '📊',
-    itens: [
-      { nome: 'FastReport 3 (FR3)', nivel: 82, descricao: 'Personalização e confecção de relatórios sob demanda para clientes' },
-      { nome: 'Layouts personalizados', nivel: 80, descricao: 'NF-e, boletos, cupons, pedidos e outros documentos fiscais' },
-    ]
-  },
-  {
-    categoria: 'ERP Ganso', icone: '⚙️',
-    itens: [
-      { nome: 'Instalação & Configuração', nivel: 90, descricao: 'Deploy completo do sistema em ambiente do cliente, incluindo rede e periféricos' },
-      { nome: 'Estrutura do sistema', nivel: 85, descricao: 'Conhecimento sobre DLLs, pastas, dependências e arquitetura do Ganso ERP' },
-      { nome: 'Correção de bugs', nivel: 83, descricao: 'Diagnóstico e resolução de erros de sistema, DLLs ausentes e falhas de instalação' },
-      { nome: 'GansoPDV', nivel: 80, descricao: 'Configuração e suporte ao módulo de frente de caixa' },
-    ]
-  },
-  {
-    categoria: 'Fiscal & Tributário', icone: '📋',
-    itens: [
-      { nome: 'NF-e / SEFAZ', nivel: 78, descricao: 'Configuração de emissão de nota fiscal eletrônica e integração com SEFAZ' },
-      { nome: 'CSOSN / PMZ / DAS', nivel: 75, descricao: 'Configuração tributária para regimes Simples Nacional e outros' },
-      { nome: 'Boleto & Financeiro', nivel: 75, descricao: 'Configuração de carteiras de cobrança e integração bancária' },
-    ]
-  },
-  {
-    categoria: 'Desenvolvimento', icone: '💻',
-    itens: [
-      { nome: 'React + Vite', nivel: 65, descricao: 'Desenvolvimento deste portal — aprendizado em andamento' },
-      { nome: 'JavaScript', nivel: 60, descricao: 'Lógica de frontend, manipulação de dados e integrações' },
-      { nome: 'Firebase / Firestore', nivel: 62, descricao: 'Banco de dados em tempo real e autenticação' },
-      { nome: 'Git & GitHub', nivel: 58, descricao: 'Versionamento de código e deploy via Vercel' },
-    ]
-  },
-]
+function MapaRadar({ implantacoes, onInspecionar }) {
+  const [filtro, setFiltro] = useState('all')
+  const [busca, setBusca] = useState('')
 
-const tiposAtendimento = [
-  'Atendimento ao cliente', 'Treinamento', 'Importação de relatório',
-  'Criação de relatório FR3', 'Parâmetros do sistema', 'Configuração de usuário',
-  'Configuração avançada', 'Suporte técnico',
-]
+  const total = implantacoes.length
+  const porEstado = {}
+  implantacoes.forEach(i => {
+    const uf = (i.cidade || '').split('-').pop()?.trim()
+    if (uf) porEstado[uf] = (porEstado[uf] || 0) + 1
+  })
 
-const estadosAtivos = [
-  { uf: 'MS', nome: 'Mato Grosso do Sul', clientes: 7, cx: 310, cy: 390 },
-  { uf: 'SP', nome: 'São Paulo', clientes: 2, cx: 390, cy: 430 },
-  { uf: 'MG', nome: 'Minas Gerais', clientes: 1, cx: 420, cy: 360 },
-]
+  const filtradas = implantacoes.filter(i => {
+    const texto = (i.cliente + i.cidade).toLowerCase()
+    const matchBusca = texto.includes(busca.toLowerCase())
+    const matchFiltro = filtro === 'all' || (i.cidade || '').includes(`- ${filtro}`)
+    return matchBusca && matchFiltro
+  })
 
-const statusConfig = {
-  lider:     { label: 'Ativa - Analista Líder',    cor: 'bg-emerald-400', badge: 'bg-emerald-950 text-emerald-400' },
-  auxiliar:  { label: 'Ativa - Analista Auxiliar', cor: 'bg-blue-400',    badge: 'bg-blue-950 text-blue-400' },
-  cancelado: { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
-  sucesso:   { label: 'Ativa - Analista Líder',    cor: 'bg-emerald-400', badge: 'bg-emerald-950 text-emerald-400' },
-  inativo:   { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
-  falha:     { label: 'Cancelada',                 cor: 'bg-red-400',     badge: 'bg-red-950 text-red-400' },
-}
+  const receitaTotal = implantacoes.filter(i=>i.status==='lider'||i.status==='sucesso').reduce((a,i)=>a+(parseFloat(i.valor)||0),0)
 
-const skillsDestaque = [
-  { nome: 'Firebird 2.5 / IBExpert', nivel: 85 },
-  { nome: 'FastReport 3 (FR3)', nivel: 82 },
-  { nome: 'ERP Ganso — Instalação', nivel: 90 },
-  { nome: 'NF-e / SEFAZ', nivel: 78 },
-  { nome: 'Correção de bugs', nivel: 83 },
-]
-
-function MapaBrasil() {
-  return (
-    <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-      <h3 className="font-semibold mb-1 text-sm text-gray-300">Alcance geográfico</h3>
-      <p className="text-xs text-gray-500 mb-4">Estados onde realizei implantações</p>
-      <div className="flex flex-col md:flex-row gap-6 items-center">
-        <div className="relative w-full max-w-sm">
-          <svg viewBox="0 0 600 620" className="w-full">
-            <path d="M210,30 L260,25 L280,60 L250,80 L200,70 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M310,25 L340,20 L355,50 L330,65 L305,55 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M130,60 L250,80 L280,60 L300,90 L330,65 L355,90 L340,140 L290,160 L240,150 L190,170 L140,150 L110,110 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M290,160 L340,140 L355,90 L400,100 L440,120 L450,160 L420,200 L380,210 L330,220 L290,200 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M420,200 L450,160 L480,170 L500,200 L490,230 L460,240 L430,230 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M460,240 L490,230 L510,250 L505,280 L480,290 L455,270 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M490,230 L510,220 L535,235 L540,260 L510,270 L505,280 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M535,235 L555,230 L560,250 L540,260 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M540,260 L560,255 L562,270 L545,275 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M505,280 L545,275 L562,280 L555,295 L505,295 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M545,295 L562,290 L560,308 L542,308 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M542,308 L560,308 L558,322 L540,320 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M430,230 L460,240 L455,270 L480,290 L505,295 L505,280 L505,295 L540,320 L530,370 L490,390 L450,400 L410,380 L390,340 L380,290 L400,260 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M380,210 L420,200 L430,230 L400,260 L380,290 L355,270 L350,230 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M350,270 L380,290 L390,340 L370,370 L340,360 L320,330 L330,290 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M368,318 L378,318 L378,328 L368,328 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M390,340 L410,380 L450,400 L460,430 L430,450 L390,440 L360,420 L340,390 L340,360 L370,370 Z" fill="#064e3b" stroke="#34d399" strokeWidth="1.5"/>
-            <path d="M460,390 L490,390 L488,420 L460,415 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M430,450 L460,445 L470,465 L445,475 L425,465 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M340,390 L360,420 L390,440 L430,450 L425,465 L400,480 L360,475 L330,455 L310,425 L320,400 Z" fill="#064e3b" stroke="#34d399" strokeWidth="1.5"/>
-            <path d="M260,360 L320,330 L340,360 L340,390 L320,400 L310,425 L280,430 L250,410 L240,380 Z" fill="#065f46" stroke="#34d399" strokeWidth="2"/>
-            <path d="M190,170 L240,150 L290,160 L290,200 L330,220 L330,290 L320,330 L260,360 L220,340 L190,300 L170,250 L180,200 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M140,150 L190,170 L180,200 L170,250 L140,250 L120,210 L130,170 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M100,190 L130,170 L140,210 L120,230 L90,215 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M280,430 L310,425 L330,455 L310,470 L280,465 L260,450 L265,430 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M260,465 L310,470 L305,490 L270,490 L255,478 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-            <path d="M255,490 L305,490 L310,530 L280,555 L250,545 L230,515 L235,490 Z" fill="#1f2937" stroke="#374151" strokeWidth="1"/>
-          </svg>
-          <svg viewBox="0 0 600 620" className="w-full absolute top-0 left-0 pointer-events-none">
-            {estadosAtivos.map(e => (
-              <g key={e.uf}>
-                <circle cx={e.cx} cy={e.cy} r="10" fill="#34d399" opacity="0.25" />
-                <circle cx={e.cx} cy={e.cy} r="5" fill="#34d399" />
-                <text x={e.cx} y={e.cy - 14} textAnchor="middle" fill="#34d399" fontSize="11" fontWeight="bold">{e.uf}</text>
-              </g>
-            ))}
-          </svg>
-        </div>
-        <div className="space-y-3 w-full md:w-auto">
-          {estadosAtivos.map(e => (
-            <div key={e.uf} className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 min-w-48">
-              <div className="w-3 h-3 rounded-full bg-emerald-400 flex-shrink-0"></div>
-              <div>
-                <p className="text-sm font-semibold">{e.nome}</p>
-                <p className="text-xs text-gray-400">{e.clientes} {e.clientes === 1 ? 'cliente' : 'clientes'}</p>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3">
-            <div className="w-3 h-3 rounded-full bg-gray-600 flex-shrink-0"></div>
-            <p className="text-xs text-gray-500">Demais estados</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ResumoExecutivo({ implantacoes, atendimentos, cases }) {
-  const lideres    = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').length
-  const auxiliares = implantacoes.filter(i => i.status === 'auxiliar').length
-  const canceladas = implantacoes.filter(i => ['cancelado','inativo','falha'].includes(i.status)).length
-  const receitaTotal = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').reduce((acc, i) => acc + (parseFloat(i.valor) || 0), 0)
-  const totalEstacoes = implantacoes.reduce((acc, i) => acc + (parseInt(i.estacoes) || 0), 0)
-  const taxa = implantacoes.length > 0 ? Math.round(((lideres + auxiliares) / implantacoes.length) * 100) : 0
-
-  const handlePrint = () => {
-    window.print()
+  const getCorPonto = (i) => {
+    if (i.status==='lider'||i.status==='sucesso') return '#19B887'
+    if (i.status==='auxiliar') return '#4F8CFF'
+    return '#E85D6A'
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="rounded-2xl p-5 relative overflow-hidden flex flex-col" style={{backgroundColor:'#171A21',border:'1px solid #2A303A',minHeight:'520px'}}>
+      {/* Header do mapa */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3" style={{borderBottom:'1px solid #2A303A'}}>
         <div>
-          <h2 className="text-lg font-bold">Resumo Executivo</h2>
-          <p className="text-sm text-gray-400">Dossiê profissional para avaliação de desempenho</p>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:'#19B887'}}></span>
+            <h3 className="text-sm font-bold uppercase tracking-wide" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Alcance Geográfico Operacional</h3>
+          </div>
+          <p className="text-xs mt-0.5" style={{color:'#707985'}}>Mapeamento em tempo real com radar sweep ativo (Centro-Oeste & Sudeste)</p>
         </div>
-        <button onClick={handlePrint}
-          className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-          ↓ Exportar PDF
-        </button>
+        <div className="flex items-center gap-1.5 p-1 rounded-xl text-xs" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>
+          {[{k:'all',l:`Todos (${total})`},{k:'MS',l:`MS (${porEstado['MS']||0})`},{k:'SP',l:`SP (${porEstado['SP']||0})`},{k:'MG',l:`MG (${porEstado['MG']||0})`}].map(f=>(
+            <button key={f.k} onClick={()=>setFiltro(f.k)}
+              className="px-2.5 py-1 rounded-lg transition font-mono"
+              style={filtro===f.k?{backgroundColor:'#171A21',color:'#19B887',border:'1px solid #2A303A'}:{color:'#707985'}}>
+              {f.l}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Conteúdo imprimível */}
-      <div id="resumo-print" className="space-y-6">
+      {/* SVG do Mapa */}
+      <div className="relative flex-1 flex items-center justify-center py-4 rounded-xl my-2 overflow-hidden" style={{backgroundColor:'#12151B',border:'1px solid rgba(42,48,58,0.6)'}}>
+        <svg viewBox="0 0 680 500" className="w-full max-w-xl h-auto" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <pattern id="tacticalGrid" width="24" height="24" patternUnits="userSpaceOnUse">
+              <path d="M 24 0 L 0 0 0 24" fill="none" stroke="rgba(255,255,255,0.025)" strokeWidth="1"/>
+            </pattern>
+            <clipPath id="radarSweepClip"><circle cx="220" cy="260" r="280"/></clipPath>
+            <linearGradient id="radarSweepLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#19B887" stopOpacity="0.9"/>
+              <stop offset="60%" stopColor="#36D6A0" stopOpacity="0.5"/>
+              <stop offset="100%" stopColor="#19B887" stopOpacity="0"/>
+            </linearGradient>
+            <radialGradient id="hqGlowGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#19B887" stopOpacity="0.3"/>
+              <stop offset="50%" stopColor="#19B887" stopOpacity="0.08"/>
+              <stop offset="100%" stopColor="#19B887" stopOpacity="0"/>
+            </radialGradient>
+            <linearGradient id="radarWedgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#19B887" stopOpacity="0.22"/>
+              <stop offset="50%" stopColor="#36D6A0" stopOpacity="0.08"/>
+              <stop offset="100%" stopColor="#19B887" stopOpacity="0"/>
+            </linearGradient>
+          </defs>
+          <rect width="680" height="500" fill="url(#tacticalGrid)"/>
+          {/* Rings */}
+          <g opacity="0.6">
+            <circle cx="220" cy="260" r="75" fill="none" stroke="#2A303A" strokeDasharray="3 3" strokeWidth="1"/>
+            <text x="220" y="180" textAnchor="middle" fill="#707985" fontSize="7.5" fontFamily="JetBrains Mono">150 KM</text>
+            <circle cx="220" cy="260" r="160" fill="none" stroke="#2A303A" strokeDasharray="4 4" strokeWidth="1"/>
+            <text x="220" y="96" textAnchor="middle" fill="#707985" fontSize="7.5" fontFamily="JetBrains Mono">300 KM</text>
+            <circle cx="220" cy="260" r="255" fill="none" stroke="#2A303A" strokeDasharray="4 6" strokeWidth="1"/>
+            <line x1="220" x2="220" y1="15" y2="485" stroke="#2A303A" strokeDasharray="2 3" strokeWidth="1" opacity="0.4"/>
+            <line x1="10" x2="670" y1="260" y2="260" stroke="#2A303A" strokeDasharray="2 3" strokeWidth="1" opacity="0.4"/>
+          </g>
+          {/* Fundo estados */}
+          <g opacity="0.45">
+            <polygon points="120,60 270,50 360,90 320,170 190,160 110,130" fill="#1C2028" stroke="#2A303A" strokeWidth="1.2"/>
+            <polygon points="170,360 280,350 350,430 250,460 170,410" fill="#1C2028" stroke="#2A303A" strokeWidth="1.2"/>
+            <polygon points="460,320 540,300 520,350 440,360" fill="#1C2028" stroke="#2A303A" strokeWidth="1"/>
+          </g>
+          {/* Estados ativos */}
+          <g>
+            {/* MG */}
+            <polygon points="340,160 480,140 540,210 490,290 390,270 340,210" fill="#36D6A0" fillOpacity="0.10" stroke="#36D6A0" strokeDasharray="4,2" strokeWidth={filtro==='MG'?3:1.5}/>
+            <rect x="445" y="195" width="34" height="20" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
+            <text x="462" y="209" textAnchor="middle" fill="#36D6A0" fontSize="10" fontWeight="bold" fontFamily="JetBrains Mono">MG</text>
+            {/* MS */}
+            <polygon points="160,190 285,180 310,260 260,350 170,340 140,260" fill="#19B887" fillOpacity="0.16" stroke="#19B887" strokeWidth={filtro==='MS'?3:1.8}/>
+            <rect x="178" y="215" width="50" height="22" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
+            <text x="203" y="230" textAnchor="middle" fill="#19B887" fontSize="11" fontWeight="bold" fontFamily="JetBrains Mono">MS</text>
+            <text x="203" y="246" textAnchor="middle" fill="#A8AFB9" fontSize="8" fontFamily="JetBrains Mono">{porEstado['MS']||0} Clientes</text>
+            {/* SP */}
+            <polygon points="290,270 390,265 440,320 370,370 290,325" fill="#4F8CFF" fillOpacity="0.14" stroke="#4F8CFF" strokeWidth={filtro==='SP'?3:1.5}/>
+            <rect x="330" y="305" width="34" height="20" rx="4" fill="#171A21" stroke="#2A303A" strokeWidth="1"/>
+            <text x="347" y="319" textAnchor="middle" fill="#4F8CFF" fontSize="10" fontWeight="bold" fontFamily="JetBrains Mono">SP</text>
+          </g>
+          {/* Radar sweep */}
+          <g clipPath="url(#radarSweepClip)">
+            <circle cx="220" cy="260" r="180" fill="url(#hqGlowGrad)"/>
+            <g className="radar-beam">
+              <path d="M 220 260 L 485 200 A 270 270 0 0 0 490 260 Z" fill="url(#radarWedgeGrad)" opacity="0.65"/>
+              <path d="M 220 260 L 490 260 A 270 270 0 0 0 470 320 Z" fill="url(#radarWedgeGrad)" opacity="0.3"/>
+              <line x1="220" y1="260" x2="490" y2="260" stroke="url(#radarSweepLineGrad)" strokeWidth="2" strokeLinecap="round"/>
+              <circle cx="488" cy="260" r="2.5" fill="#36D6A0" opacity="0.8"/>
+            </g>
+          </g>
+          {/* Arcos de conexão */}
+          <g opacity="0.5">
+            <line x1="220" y1="260" x2="205" y2="285" stroke="#19B887" strokeDasharray="3,3" strokeWidth="1.2"/>
+            <path d="M 220 260 Q 265 268 325 295" fill="none" stroke="#4F8CFF" strokeDasharray="5,4" strokeWidth="1.4"/>
+            <path d="M 220 260 Q 320 180 440 220" fill="none" stroke="#36D6A0" strokeDasharray="6,4" strokeWidth="1.4"/>
+          </g>
+          {/* Campo Grande HQ */}
+          <g transform="translate(220,260)" className="cursor-pointer" onClick={()=>onInspecionar(null)}>
+            <circle r="6" fill="#19B887" stroke="#0F1115" strokeWidth="2"/>
+            <circle r="2" fill="#0F1115"/>
+            <text x="12" y="4" fill="#F1F3F5" fontSize="11" fontWeight="700" fontFamily="Space Grotesk">Campo Grande (HQ)</text>
+            <text x="12" y="16" fill="#19B887" fontSize="9" fontFamily="JetBrains Mono">
+              {(porEstado['MS']||0)} Clientes · R$ {implantacoes.filter(i=>(i.cidade||'').includes('MS')&&(i.status==='lider'||i.status==='sucesso')).reduce((a,i)=>a+(parseFloat(i.valor)||0),0).toLocaleString('pt-BR',{minimumFractionDigits:2})}
+            </text>
+          </g>
+          {/* Sidrolândia */}
+          <g transform="translate(195,285)" className="cursor-pointer">
+            <circle r="5" fill="#19B887" stroke="#0F1115" strokeWidth="1.5"/>
+            <text x="-10" y="18" textAnchor="end" fill="#F1F3F5" fontSize="9.5" fontWeight="600" fontFamily="Space Grotesk">Sidrolândia</text>
+          </g>
+          {/* Presidente Prudente */}
+          <g transform="translate(325,295)" className="cursor-pointer">
+            <circle r="5" fill="#4F8CFF" stroke="#0F1115" strokeWidth="1.5"/>
+            <text x="10" y="-4" fill="#F1F3F5" fontSize="10" fontWeight="600" fontFamily="Space Grotesk">Pres. Prudente</text>
+            <text x="10" y="8" fill="#4F8CFF" fontSize="8.5" fontFamily="JetBrains Mono">{porEstado['SP']||0} Clientes</text>
+          </g>
+          {/* Patrocínio */}
+          <g transform="translate(440,220)" className="cursor-pointer">
+            <circle r="5" fill="#36D6A0" stroke="#0F1115" strokeWidth="1.5"/>
+            <text x="12" y="2" fill="#F1F3F5" fontSize="10" fontWeight="600" fontFamily="Space Grotesk">Patrocínio</text>
+          </g>
+        </svg>
+        {/* Legenda */}
+        <div className="absolute bottom-3 left-4 p-2.5 rounded-xl text-xs space-y-1.5" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span><span style={{color:'#A8AFB9'}}>Base Ativa (Líder)</span></div>
+          <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#E85D6A'}}></span><span style={{color:'#A8AFB9'}}>Cancelada</span></div>
+          <div className="flex items-center gap-2"><span className="w-3 h-0.5" style={{backgroundColor:'#4F8CFF'}}></span><span style={{color:'#707985'}}>Rotas de Suporte</span></div>
+        </div>
+      </div>
 
-        {/* Cabeçalho — identidade */}
-        <div className="bg-gradient-to-r from-emerald-900 to-gray-900 rounded-xl p-8 border border-emerald-800">
-          <div className="flex items-center gap-6">
-            <div className="w-20 h-20 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-2xl font-bold text-white">NN</span>
-            </div>
+      {/* Cards de estado */}
+      <div className="grid grid-cols-3 gap-2.5 pt-3" style={{borderTop:'1px solid #2A303A'}}>
+        {[{uf:'MS',label:'Mato Grosso do Sul',cor:'#19B887'},{uf:'SP',label:'São Paulo',cor:'#4F8CFF'},{uf:'MG',label:'Minas Gerais',cor:'#36D6A0'}].map(e=>(
+          <div key={e.uf} onClick={()=>setFiltro(e.uf)} className="p-2.5 rounded-xl flex items-center justify-between cursor-pointer transition"
+            style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
             <div>
-              <h1 className="text-3xl font-bold text-white">Nycolas Neves</h1>
-              <p className="text-emerald-400 font-semibold text-lg mt-1">Assistente de Implantação II</p>
-              <p className="text-gray-400 text-sm mt-1">Ganso Sistemas · Campo Grande, MS</p>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-xs text-emerald-400">Mai/2025 — presente · 1 ano e 4 meses</span>
-              </div>
+              <span className="text-xs font-mono font-semibold" style={{color:e.cor,fontSize:'10px',fontFamily:'JetBrains Mono'}}>{e.label}</span>
+              <p className="text-sm font-bold font-mono" style={{color:'#F1F3F5'}}>{porEstado[e.uf]||0} Clientes</p>
             </div>
+            <span className="text-xs font-mono" style={{color:e.cor,fontFamily:'JetBrains Mono'}}>
+              {total > 0 ? Math.round(((porEstado[e.uf]||0)/total)*100) : 0}%
+            </span>
           </div>
-        </div>
-
-        {/* Números principais */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-emerald-400">{lideres}</p>
-            <p className="text-xs text-gray-400 mt-2">Implantações como<br/>Analista Líder</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-blue-400">{auxiliares}</p>
-            <p className="text-xs text-gray-400 mt-2">Implantações como<br/>Analista Auxiliar</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-3xl font-bold text-emerald-400">
-              {receitaTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 })}
-            </p>
-            <p className="text-xs text-gray-400 mt-2">Receita mensal<br/>gerada</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-emerald-400">{taxa}%</p>
-            <p className="text-xs text-gray-400 mt-2">Taxa de<br/>aproveitamento</p>
-          </div>
-        </div>
-
-        {/* Segunda linha de métricas */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-emerald-400">{totalEstacoes}</p>
-            <p className="text-xs text-gray-400 mt-2">Estações implantadas</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-emerald-400">{atendimentos.length}</p>
-            <p className="text-xs text-gray-400 mt-2">Atendimentos registrados</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 text-center">
-            <p className="text-4xl font-bold text-emerald-400">3</p>
-            <p className="text-xs text-gray-400 mt-2">Estados atendidos<br/>(MS, SP, MG)</p>
-          </div>
-        </div>
-
-        {/* Trajetória resumida */}
-        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-          <h3 className="font-semibold mb-4 text-sm text-gray-300">Trajetória na empresa</h3>
-          <div className="flex items-center gap-4">
-            <div className="flex-1 bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <p className="text-xs text-gray-500 mb-1">Mai 2025 — Jan 2026</p>
-              <p className="font-semibold text-sm">Auxiliar de Implantação</p>
-              <p className="text-xs text-gray-400 mt-1">Instalação, suporte e primeiros atendimentos</p>
-            </div>
-            <div className="text-emerald-400 text-xl font-bold flex-shrink-0">→</div>
-            <div className="flex-1 bg-emerald-950 rounded-lg p-4 border border-emerald-800">
-              <p className="text-xs text-emerald-600 mb-1">Fev 2026 — atual</p>
-              <p className="font-semibold text-sm text-emerald-400">Assistente de Implantação II</p>
-              <p className="text-xs text-gray-400 mt-1">Promoção em menos de 9 meses</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Skills principais */}
-        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-          <h3 className="font-semibold mb-4 text-sm text-gray-300">Principais competências técnicas</h3>
-          <div className="space-y-3">
-            {skillsDestaque.map((s, i) => (
-              <div key={i}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-300">{s.nome}</span>
-                  <span className="text-emerald-400 font-semibold">{s.nivel}%</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2">
-                  <div className="bg-emerald-400 h-2 rounded-full" style={{ width: `${s.nivel}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Cases destaque */}
-        {cases.length > 0 && (
-          <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-            <h3 className="font-semibold mb-4 text-sm text-gray-300">Cases & Projetos desenvolvidos</h3>
-            <div className="space-y-3">
-              {cases.slice(0, 3).map((c, i) => (
-                <div key={i} className="flex items-start gap-3 border-b border-gray-800 pb-3 last:border-0 last:pb-0">
-                  <span className="text-emerald-400 font-bold text-sm flex-shrink-0">▸</span>
-                  <div>
-                    <p className="text-sm font-semibold">{c.titulo}</p>
-                    <p className="text-xs text-emerald-400">{c.cliente} · {c.tipo}</p>
-                    {c.impacto && <p className="text-xs text-gray-400 mt-0.5">{c.impacto}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Clientes ativos */}
-        <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-          <h3 className="font-semibold mb-4 text-sm text-gray-300">Clientes implantados</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').map((i, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
-                <p className="text-xs text-gray-300">{i.cliente}</p>
-              </div>
-            ))}
-            {implantacoes.filter(i => i.status === 'auxiliar').map((i, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0"></span>
-                <p className="text-xs text-gray-300">{i.cliente} <span className="text-blue-400">(aux.)</span></p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Rodapé */}
-        <div className="text-center py-4 border-t border-gray-800">
-          <p className="text-xs text-gray-500">Portfólio gerado em {new Date().toLocaleDateString('pt-BR')} · Nycolas Neves · Ganso Sistemas</p>
-        </div>
+        ))}
       </div>
 
-      {/* CSS de impressão */}
+      {/* CSS do radar */}
       <style>{`
-        @media print {
-          body { background: white !important; color: black !important; }
-          header, .no-print { display: none !important; }
-          #resumo-print { padding: 20px; }
-          .bg-gray-950, .bg-gray-900, .bg-gray-800 { background: #f9fafb !important; }
-          .text-white { color: #111 !important; }
-          .text-gray-400, .text-gray-500 { color: #666 !important; }
-          .text-emerald-400 { color: #059669 !important; }
-          .border-gray-800, .border-gray-700 { border-color: #e5e7eb !important; }
-          .bg-emerald-950 { background: #ecfdf5 !important; }
-          .bg-emerald-400 { background: #059669 !important; }
-          .bg-gray-800 { background: #f3f4f6 !important; }
-        }
+        .radar-beam { animation: radarSweepSpin 9s linear infinite; transform-origin: 220px 260px; pointer-events: none; }
+        @keyframes radarSweepSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
       `}</style>
     </div>
   )
 }
+
+// ─── APP PRINCIPAL ───────────────────────────────────────────────────────────
 
 export default function App() {
   const [usuario, setUsuario] = useState(undefined)
@@ -417,608 +312,626 @@ export default function App() {
   const [atendimentos, setAtendimentos] = useState([])
   const [cases, setCases] = useState([])
   const [aba, setAba] = useState('visao-geral')
-  const [busca, setBusca] = useState('')
   const [loading, setLoading] = useState(true)
   const [habilidades, setHabilidades] = useState(habilidadesInicial)
-
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUsuario(u ?? null))
-    return () => unsub()
-  }, [])
   const [editandoHabilidade, setEditandoHabilidade] = useState(null)
   const [formHabilidade, setFormHabilidade] = useState({ nivel: 0, descricao: '' })
+  const [clienteInspecionado, setClienteInspecionado] = useState(null)
+  const [buscaTabela, setBuscaTabela] = useState('')
+  const [mostrarFormAdd, setMostrarFormAdd] = useState(false)
 
-  const formImplantacaoVazio = { cliente: '', valor: '', cidade: '', status: 'lider', observacao: '', motivoCancelamento: '', estacoes: '' }
-  const [form, setForm] = useState(formImplantacaoVazio)
-  const [editandoImplantacao, setEditandoImplantacao] = useState(null)
+  const formImpVazio = { cliente:'', valor:'', cidade:'', status:'lider', observacao:'', motivoCancelamento:'', estacoes:'' }
+  const [form, setForm] = useState(formImpVazio)
+  const [editandoImp, setEditandoImp] = useState(null)
 
-  const formAtendimentoVazio = { tipo: tiposAtendimento[0], descricao: '', cliente: '', data: '', numeroCaso: '' }
-  const [formAtendimento, setFormAtendimento] = useState(formAtendimentoVazio)
-  const [editandoAtendimento, setEditandoAtendimento] = useState(null)
-  const [mostrarFormAtendimento, setMostrarFormAtendimento] = useState(false)
+  const formAtVazio = { tipo: tiposAtendimento[0], descricao:'', cliente:'', data:'', numeroCaso:'' }
+  const [formAt, setFormAt] = useState(formAtVazio)
+  const [editandoAt, setEditandoAt] = useState(null)
+  const [mostrarFormAt, setMostrarFormAt] = useState(false)
 
-  const formCaseVazio = { titulo: '', cliente: '', tipo: 'Layout FR3', descricao: '', impacto: '', tags: '' }
+  const formCaseVazio = { titulo:'', cliente:'', tipo:'Layout FR3', descricao:'', impacto:'', tags:'' }
   const [formCase, setFormCase] = useState(formCaseVazio)
   const [editandoCase, setEditandoCase] = useState(null)
   const [mostrarFormCase, setMostrarFormCase] = useState(false)
 
   useEffect(() => {
-    const unsub1 = onSnapshot(collection(db, 'implantacoes'), (snap) => {
-      setImplantacoes(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      setLoading(false)
-    })
-    const unsub2 = onSnapshot(collection(db, 'atendimentos'), (snap) => {
-      setAtendimentos(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
-    const unsub3 = onSnapshot(collection(db, 'cases'), (snap) => {
-      setCases(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    })
-    return () => { unsub1(); unsub2(); unsub3() }
+    const unsub = onAuthStateChanged(auth, u => setUsuario(u ?? null))
+    return () => unsub()
   }, [])
 
-  const lideres    = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').length
-  const auxiliares = implantacoes.filter(i => i.status === 'auxiliar').length
-  const canceladas = implantacoes.filter(i => ['cancelado','inativo','falha'].includes(i.status)).length
+  useEffect(() => {
+    if (!usuario) return
+    const u1 = onSnapshot(collection(db,'implantacoes'), snap => { setImplantacoes(snap.docs.map(d=>({id:d.id,...d.data()}))); setLoading(false) })
+    const u2 = onSnapshot(collection(db,'atendimentos'), snap => setAtendimentos(snap.docs.map(d=>({id:d.id,...d.data()}))))
+    const u3 = onSnapshot(collection(db,'cases'), snap => setCases(snap.docs.map(d=>({id:d.id,...d.data()}))))
+    return () => { u1(); u2(); u3() }
+  }, [usuario])
+
+  if (usuario === undefined) return <div className="min-h-screen flex items-center justify-center" style={{backgroundColor:'#0F1115'}}><p style={{color:'#707985',fontFamily:'JetBrains Mono',fontSize:'12px'}}>Inicializando...</p></div>
+  if (usuario === null) return <TelaLogin />
+
+  // métricas
+  const lideres    = implantacoes.filter(i=>i.status==='lider'||i.status==='sucesso').length
+  const auxiliares = implantacoes.filter(i=>i.status==='auxiliar').length
+  const canceladas = implantacoes.filter(i=>['cancelado','inativo','falha'].includes(i.status)).length
   const total      = implantacoes.length
-  const ativas     = lideres + auxiliares
-  const taxa       = total > 0 ? Math.round((ativas / total) * 100) : 0
-  const receitaTotal = implantacoes.filter(i => i.status === 'lider' || i.status === 'sucesso').reduce((acc, i) => acc + (parseFloat(i.valor) || 0), 0)
+  const taxa       = total > 0 ? Math.round(((lideres+auxiliares)/total)*100) : 0
+  const receitaTotal = implantacoes.filter(i=>i.status==='lider'||i.status==='sucesso').reduce((a,i)=>a+(parseFloat(i.valor)||0),0)
+  const totalEstacoes = implantacoes.reduce((a,i)=>a+(parseInt(i.estacoes)||0),0)
+  const ultimaCancelada = implantacoes.find(i=>['cancelado','inativo','falha'].includes(i.status))
 
-  const filtradas = implantacoes.filter(i =>
-    i.cliente?.toLowerCase().includes(busca.toLowerCase()) ||
-    i.cidade?.toLowerCase().includes(busca.toLowerCase())
-  )
+  const porEstado = {}
+  implantacoes.forEach(i => { const uf=(i.cidade||'').split('-').pop()?.trim(); if(uf) porEstado[uf]=(porEstado[uf]||0)+1 })
+  const qtdEstados = Object.keys(porEstado).filter(k=>k.length===2).length
 
-  const dadosPizza = [
-    { name: 'Analista Líder',    value: lideres,    color: '#34d399' },
-    { name: 'Analista Auxiliar', value: auxiliares, color: '#60a5fa' },
-    { name: 'Canceladas',        value: canceladas, color: '#f87171' },
-  ].filter(d => d.value > 0)
+  const filtradosTabela = implantacoes.filter(i=>{
+    const t=(i.cliente+i.cidade).toLowerCase()
+    return t.includes(buscaTabela.toLowerCase())
+  })
 
-  const dadosAtendimentos = tiposAtendimento.map(tipo => ({
-    tipo: tipo.split(' ').slice(0, 2).join(' '),
-    total: atendimentos.filter(a => a.tipo === tipo).length,
-  })).filter(d => d.total > 0)
-
-  const handleSalvarImplantacao = async (e) => {
+  // handlers
+  const salvarImp = async e => {
     e.preventDefault()
     if (!form.cliente) return
-    const dados = { ...form, valor: parseFloat(form.valor) || 0, estacoes: parseInt(form.estacoes) || 0 }
-    if (editandoImplantacao) {
-      await updateDoc(doc(db, 'implantacoes', editandoImplantacao), dados)
-    } else {
-      await addDoc(collection(db, 'implantacoes'), { ...dados, criadoEm: serverTimestamp() })
-    }
-    setForm(formImplantacaoVazio)
-    setEditandoImplantacao(null)
-    setAba('visao-geral')
+    const dados = {...form, valor:parseFloat(form.valor)||0, estacoes:parseInt(form.estacoes)||0}
+    if (editandoImp) { await updateDoc(doc(db,'implantacoes',editandoImp),dados) }
+    else { await addDoc(collection(db,'implantacoes'),{...dados,criadoEm:serverTimestamp()}) }
+    setForm(formImpVazio); setEditandoImp(null); setMostrarFormAdd(false)
   }
-
-  const handleEditarImplantacao = (i) => {
-    const s = i.status === 'sucesso' ? 'lider' : ['inativo','falha'].includes(i.status) ? 'cancelado' : i.status
-    setForm({ cliente: i.cliente, valor: i.valor, cidade: i.cidade || '', status: s, observacao: i.observacao || '', motivoCancelamento: i.motivoCancelamento || '', estacoes: i.estacoes || '' })
-    setEditandoImplantacao(i.id)
-    setAba('adicionar')
+  const editarImp = i => {
+    const s=i.status==='sucesso'?'lider':['inativo','falha'].includes(i.status)?'cancelado':i.status
+    setForm({cliente:i.cliente,valor:i.valor,cidade:i.cidade||'',status:s,observacao:i.observacao||'',motivoCancelamento:i.motivoCancelamento||'',estacoes:i.estacoes||''})
+    setEditandoImp(i.id); setMostrarFormAdd(true); setAba('adicionar')
   }
+  const removerImp = async id => { if(confirm('Remover?')) await deleteDoc(doc(db,'implantacoes',id)) }
 
-  const handleRemover = async (id) => {
-    if (confirm('Remover esta implantação?')) await deleteDoc(doc(db, 'implantacoes', id))
-  }
-
-  const handleSalvarAtendimento = async (e) => {
+  const salvarAt = async e => {
     e.preventDefault()
-    if (!formAtendimento.tipo) return
-    if (editandoAtendimento) {
-      await updateDoc(doc(db, 'atendimentos', editandoAtendimento), formAtendimento)
-    } else {
-      await addDoc(collection(db, 'atendimentos'), { ...formAtendimento, criadoEm: serverTimestamp() })
-    }
-    setFormAtendimento(formAtendimentoVazio)
-    setEditandoAtendimento(null)
-    setMostrarFormAtendimento(false)
+    if (editandoAt) { await updateDoc(doc(db,'atendimentos',editandoAt),formAt) }
+    else { await addDoc(collection(db,'atendimentos'),{...formAt,criadoEm:serverTimestamp()}) }
+    setFormAt(formAtVazio); setEditandoAt(null); setMostrarFormAt(false)
   }
+  const removerAt = async id => { if(confirm('Remover?')) await deleteDoc(doc(db,'atendimentos',id)) }
 
-  const handleEditarAtendimento = (a) => {
-    setFormAtendimento({ tipo: a.tipo, descricao: a.descricao || '', cliente: a.cliente || '', data: a.data || '', numeroCaso: a.numeroCaso || '' })
-    setEditandoAtendimento(a.id)
-    setMostrarFormAtendimento(true)
-  }
-
-  const handleRemoverAtendimento = async (id) => {
-    if (confirm('Remover este atendimento?')) await deleteDoc(doc(db, 'atendimentos', id))
-  }
-
-  const handleSalvarCase = async (e) => {
+  const salvarCase = async e => {
     e.preventDefault()
     if (!formCase.titulo) return
-    if (editandoCase) {
-      await updateDoc(doc(db, 'cases', editandoCase), formCase)
-    } else {
-      await addDoc(collection(db, 'cases'), { ...formCase, criadoEm: serverTimestamp() })
-    }
-    setFormCase(formCaseVazio)
-    setEditandoCase(null)
-    setMostrarFormCase(false)
+    if (editandoCase) { await updateDoc(doc(db,'cases',editandoCase),formCase) }
+    else { await addDoc(collection(db,'cases'),{...formCase,criadoEm:serverTimestamp()}) }
+    setFormCase(formCaseVazio); setEditandoCase(null); setMostrarFormCase(false)
   }
+  const removerCase = async id => { if(confirm('Remover?')) await deleteDoc(doc(db,'cases',id)) }
 
-  const handleEditarCase = (c) => {
-    setFormCase({ titulo: c.titulo, cliente: c.cliente || '', tipo: c.tipo, descricao: c.descricao, impacto: c.impacto || '', tags: c.tags || '' })
-    setEditandoCase(c.id)
-    setMostrarFormCase(true)
-  }
-
-  const handleRemoverCase = async (id) => {
-    if (confirm('Remover este case?')) await deleteDoc(doc(db, 'cases', id))
-  }
-
-  const handleEditarHabilidade = (catIdx, itemIdx) => {
-    const item = habilidades[catIdx].itens[itemIdx]
-    setFormHabilidade({ nivel: item.nivel, descricao: item.descricao })
-    setEditandoHabilidade({ catIdx, itemIdx })
-  }
-
-  const handleSalvarHabilidade = () => {
-    setHabilidades(habilidades.map((cat, ci) => ({
-      ...cat,
-      itens: cat.itens.map((item, ii) =>
-        ci === editandoHabilidade.catIdx && ii === editandoHabilidade.itemIdx
-          ? { ...item, nivel: parseInt(formHabilidade.nivel), descricao: formHabilidade.descricao }
-          : item
-      )
-    })))
+  const salvarHab = () => {
+    setHabilidades(habilidades.map((cat,ci)=>({...cat,itens:cat.itens.map((item,ii)=>
+      ci===editandoHabilidade.catIdx&&ii===editandoHabilidade.itemIdx?{...item,nivel:parseInt(formHabilidade.nivel),descricao:formHabilidade.descricao}:item
+    )})))
     setEditandoHabilidade(null)
   }
 
   const abas = [
-    { id: 'visao-geral',   label: 'Visão Geral' },
-    { id: 'clientes',      label: 'Clientes' },
-    { id: 'atendimentos',  label: 'Atendimentos' },
-    { id: 'cases',         label: 'Cases' },
-    { id: 'carreira',      label: 'Carreira' },
-    { id: 'habilidades',   label: 'Habilidades' },
-    { id: 'resumo',        label: '📄 Resumo' },
-    { id: 'adicionar',     label: '+ Adicionar' },
+    {id:'visao-geral',label:'Visão Geral',icon:'⊞'},
+    {id:'clientes',label:'Clientes',icon:'👥'},
+    {id:'atendimentos',label:'Atendimentos',icon:'💬'},
+    {id:'cases',label:'Cases',icon:'📁'},
+    {id:'carreira',label:'Carreira',icon:'📈'},
+    {id:'habilidades',label:'Habilidades',icon:'⚡'},
+    {id:'resumo',label:'Resumo Executivo',icon:'📄'},
   ]
 
-  if (usuario === undefined) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <p className="text-gray-500 text-sm">Carregando...</p>
-    </div>
-  }
-
-  if (usuario === null) return <TelaLogin />
+  const inputStyle = {backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#F1F3F5',borderRadius:'12px',padding:'10px 14px',fontSize:'13px',width:'100%',outline:'none'}
+  const labelStyle = {color:'#707985',fontSize:'11px',fontFamily:'JetBrains Mono',display:'block',marginBottom:'4px'}
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4 flex items-center justify-between no-print">
-        <div>
-          <h1 className="text-xl font-bold text-white">Portfólio de Implantações</h1>
-          <p className="text-xs text-emerald-400 flex items-center gap-1 mt-0.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
-            Nycolas Neves · Ganso Sistemas · Campo Grande MS
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <p className="text-xs text-gray-400">Receita ativa gerada</p>
-            <p className="text-2xl font-bold text-emerald-400">
-              R$ {receitaTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-            </p>
+    <div className="min-h-screen pb-16 antialiased" style={{backgroundColor:'#0F1115',color:'#A8AFB9',fontFamily:'Inter, sans-serif'}}>
+
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 px-4 py-3 transition-all" style={{borderBottom:'1px solid #2A303A',backgroundColor:'rgba(15,17,21,0.95)',backdropFilter:'blur(12px)'}}>
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5 w-full md:w-auto">
+            <div className="relative w-10 h-10 rounded-xl flex items-center justify-center font-bold" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#19B887'}}>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-bold tracking-tight" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Portfólio de Implantações</h1>
+                <span className="text-xs px-2 py-0.5 rounded" style={{backgroundColor:'#1C2028',color:'#19B887',border:'1px solid #2A303A',fontFamily:'JetBrains Mono',fontSize:'10px',fontWeight:'bold',letterSpacing:'0.1em'}}>Ganso Sistemas</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs" style={{color:'#707985'}}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{backgroundColor:'#19B887'}}></span>
+                <span style={{color:'#A8AFB9'}}>Nycolas Neves</span>
+                <span style={{color:'#2A303A'}}>•</span>
+                <span>Campo Grande, MS</span>
+                <span style={{color:'#2A303A'}}>•</span>
+                <span style={{color:'#19B887',fontFamily:'JetBrains Mono',fontSize:'11px'}}>HQ Operacional</span>
+              </div>
+            </div>
           </div>
-          <button onClick={() => signOut(auth)}
-            className="text-xs text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 px-3 py-1.5 rounded-lg transition-colors">
-            Sair
-          </button>
+          <div className="flex items-center justify-between w-full md:w-auto gap-4 rounded-xl px-4 py-2" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+            <div>
+              <p style={{fontSize:'10px',color:'#707985',fontFamily:'JetBrains Mono',textTransform:'uppercase',letterSpacing:'0.05em'}}>Receita Ativa Gerada</p>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>R$ {receitaTotal.toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+                <span style={{fontSize:'11px',color:'#707985',fontFamily:'JetBrains Mono'}}>/mês</span>
+              </div>
+            </div>
+            <div className="w-px h-8 hidden sm:block" style={{backgroundColor:'#2A303A'}}></div>
+            <div className="hidden sm:block text-right">
+              <p style={{fontSize:'10px',color:'#707985',fontFamily:'JetBrains Mono',textTransform:'uppercase',letterSpacing:'0.05em'}}>Aproveitamento</p>
+              <div className="flex items-center gap-1.5 justify-end">
+                <span className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'JetBrains Mono'}}>{taxa}%</span>
+                <span style={{fontSize:'10px',color:'#19B887',backgroundColor:'rgba(25,184,135,0.1)',padding:'2px 6px',borderRadius:'4px',border:'1px solid rgba(25,184,135,0.2)'}}>Taxa Líder</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 w-full md:w-auto justify-end">
+            <button onClick={()=>window.print()} className="flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-lg transition" style={{backgroundColor:'#1C2028',color:'#F1F3F5',border:'1px solid #2A303A'}}>
+              ↓ Exportar PDF
+            </button>
+            <button onClick={()=>{setAba('adicionar');setMostrarFormAdd(true)}} className="flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-lg transition" style={{backgroundColor:'#19B887',color:'#0F1115'}}>
+              + Nova Implantação
+            </button>
+            <button onClick={()=>signOut(auth)} className="text-xs px-2.5 py-2 rounded-lg transition" style={{color:'#707985'}}> Sair</button>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-3 gap-4 mb-8 no-print">
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <p className="text-xs text-gray-400 mb-1">Total</p>
-            <p className="text-3xl font-bold">{total}</p>
-            <p className="text-xs text-gray-500 mt-1">implantações</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <p className="text-xs text-gray-400 mb-1">Analista Líder</p>
-            <p className="text-3xl font-bold text-emerald-400">{lideres}</p>
-            <p className="text-xs text-gray-500 mt-1">implantações ativas</p>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <p className="text-xs text-gray-400 mb-1">Analista Auxiliar</p>
-            <p className="text-3xl font-bold text-blue-400">{auxiliares}</p>
-            <p className="text-xs text-gray-500 mt-1">implantações ativas</p>
-          </div>
-        </div>
+      <main className="max-w-7xl mx-auto px-4 pt-6 space-y-6">
 
-        <div className="flex gap-1 mb-6 border-b border-gray-800 overflow-x-auto no-print">
-          {abas.map(tab => (
-            <button key={tab.id} onClick={() => setAba(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                aba === tab.id ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-gray-400 hover:text-white'
-              }`}>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {loading && <div className="text-center py-20 text-gray-500">Carregando dados...</div>}
-
-        {/* Resumo Executivo */}
-        {aba === 'resumo' && (
-          <ResumoExecutivo implantacoes={implantacoes} atendimentos={atendimentos} cases={cases} />
-        )}
-
-        {/* Visão Geral */}
-        {!loading && aba === 'visao-geral' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-                <h3 className="font-semibold mb-4 text-sm text-gray-300">Status das implantações</h3>
-                {dadosPizza.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie data={dadosPizza} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
-                        {dadosPizza.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className="text-gray-500 text-sm text-center py-8">Sem dados</p>
-                )}
-                <div className="flex flex-wrap gap-3 mt-2">
-                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-emerald-400"></span><span className="text-xs text-gray-400">Líder</span></div>
-                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-400"></span><span className="text-xs text-gray-400">Auxiliar</span></div>
-                  <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-400"></span><span className="text-xs text-gray-400">Cancelada</span></div>
-                </div>
+        {/* KPI STRIP */}
+        <section className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          {[
+            {label:'Total',valor:total,sub:'Implantações',cor:'#F1F3F5'},
+            {label:'Analista Líder',valor:lideres,sub:`${taxa}% ativas no ar`,cor:'#19B887',dot:true},
+            {label:'Auxiliar',valor:auxiliares,sub:'Implantações',cor:'#F1F3F5',labelCor:'#4F8CFF'},
+            {label:'Canceladas',valor:canceladas,sub:ultimaCancelada?.cliente||'—',cor:'#E85D6A',dot:true,dotCor:'#E85D6A'},
+            {label:'Estações',valor:totalEstacoes,sub:'Terminais configurados',cor:'#4F8CFF'},
+            {label:'Atendimentos',valor:atendimentos.length,sub:'Chamados pós-go',cor:'#F1F3F5'},
+            {label:'Estados',valor:qtdEstados,sub:Object.keys(porEstado).filter(k=>k.length===2).join(', ')||'—',cor:'#F1F3F5',badge:'HUB'},
+          ].map((k,i)=>(
+            <div key={i} className="p-3.5 rounded-xl flex flex-col justify-between transition" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+              <div className="flex items-center justify-between">
+                <span style={{fontSize:'11px',fontFamily:'JetBrains Mono',textTransform:'uppercase',letterSpacing:'0.05em',color:k.labelCor||k.dotCor||'#707985'}}>{k.label}</span>
+                {k.dot && <span className="w-2 h-2 rounded-full" style={{backgroundColor:k.dotCor||'#19B887'}}></span>}
+                {k.badge && <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#4F8CFF',backgroundColor:'#1C2028',border:'1px solid #2A303A',padding:'1px 4px',borderRadius:'3px'}}>{k.badge}</span>}
               </div>
-              <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 flex flex-col justify-center">
-                <div className="flex justify-between text-sm mb-3">
-                  <span className="text-gray-400">Taxa de aproveitamento</span>
-                  <span className="text-emerald-400 font-bold">{taxa}%</span>
+              <div className="my-1"><span className="text-2xl font-bold" style={{color:k.cor,fontFamily:'JetBrains Mono'}}>{k.valor}</span></div>
+              <span style={{fontSize:'11px',color:'#A8AFB9',fontFamily:k.sub.length>15?'inherit':'JetBrains Mono'}}>{k.sub}</span>
+            </div>
+          ))}
+        </section>
+
+        {/* ABAS */}
+        <nav className="p-1.5 rounded-xl flex flex-wrap items-center justify-between gap-2" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+          <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+            {abas.map(tab=>(
+              <button key={tab.id} onClick={()=>setAba(tab.id)}
+                className="px-4 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-2 whitespace-nowrap"
+                style={aba===tab.id?{backgroundColor:'#1C2028',color:'#19B887',border:'1px solid #2A303A'}:{color:'#A8AFB9',border:'1px solid transparent'}}>
+                <span>{tab.icon}</span>{tab.label}
+                {tab.id==='clientes'&&<span style={{fontSize:'10px',fontFamily:'JetBrains Mono',backgroundColor:'#0F1115',color:'#707985',border:'1px solid #2A303A',padding:'0 4px',borderRadius:'3px'}}>{total}</span>}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>{setAba('adicionar');setEditandoImp(null);setForm(formImpVazio);setMostrarFormAdd(true)}}
+            className="text-xs font-medium px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+            style={{backgroundColor:'#1C2028',color:'#A8AFB9',border:'1px solid #2A303A'}}>
+            + Adicionar
+          </button>
+        </nav>
+
+        {/* ── VISÃO GERAL ── */}
+        {aba==='visao-geral'&&(
+          <div className="space-y-6">
+            {/* Profile Hero */}
+            <div className="p-6 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div className="flex items-start sm:items-center gap-4">
+                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 relative" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                    <span className="text-3xl font-black" style={{color:'#19B887',fontFamily:'Space Grotesk'}}>NN</span>
+                    <span className="absolute bottom-1 right-1 w-3.5 h-3.5 rounded-full" style={{backgroundColor:'#19B887',border:'2px solid #1C2028'}}></span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h2 className="text-3xl font-bold tracking-tight" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Nycolas Neves</h2>
+                      <span className="px-2.5 py-0.5 rounded-md text-xs font-semibold" style={{backgroundColor:'#1C2028',color:'#19B887',border:'1px solid #2A303A'}}>Assistente de Implantação II</span>
+                    </div>
+                    <p className="text-sm font-medium" style={{color:'#A8AFB9'}}>Ganso Sistemas • Campo Grande, MS</p>
+                    <div className="flex flex-wrap items-center gap-3 pt-1 text-xs" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>
+                      <span className="flex items-center gap-1.5" style={{color:'#19B887'}}><span className="w-2 h-2 rounded-full" style={{backgroundColor:'#19B887'}}></span>Mai/2025 — presente</span>
+                      <span>•</span>
+                      <span>Tempo: <strong style={{color:'#F1F3F5'}}>1 ano e 4 meses</strong></span>
+                      <span>•</span>
+                      <span>Especialidade: <strong style={{color:'#F1F3F5'}}>ERP & Varejo Alimentício / Autopeças</strong></span>
+                    </div>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-800 rounded-full h-3 mb-6">
-                  <div className="bg-emerald-400 h-3 rounded-full" style={{ width: `${taxa}%` }} />
-                </div>
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <p className="text-emerald-400 font-bold text-xl">{lideres}</p>
-                    <p className="text-xs text-gray-500">líder</p>
-                  </div>
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <p className="text-blue-400 font-bold text-xl">{auxiliares}</p>
-                    <p className="text-xs text-gray-500">auxiliar</p>
-                  </div>
-                  <div className="bg-gray-800 rounded-lg p-3">
-                    <p className="text-red-400 font-bold text-xl">{canceladas}</p>
-                    <p className="text-xs text-gray-500">canceladas</p>
-                  </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={()=>setAba('resumo')} className="px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2" style={{backgroundColor:'#19B887',color:'#0F1115'}}>
+                    📄 Dossiê de Performance
+                  </button>
                 </div>
               </div>
             </div>
-            <MapaBrasil />
-            <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-800">
-                <h2 className="font-semibold">Todas as implantações</h2>
+
+            {/* Mapa + Inspector */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-8">
+                <MapaRadar implantacoes={implantacoes} onInspecionar={setClienteInspecionado}/>
               </div>
-              {implantacoes.length === 0 && (
-                <div className="px-5 py-8 text-center text-gray-500 text-sm">Nenhuma implantação registrada.</div>
-              )}
-              {implantacoes.map(i => {
-                const cfg = statusConfig[i.status] || statusConfig.cancelado
-                return (
-                  <div key={i.id} className="px-5 py-3 border-b border-gray-800 flex items-center justify-between hover:bg-gray-800 transition-colors group">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.cor}`}></span>
+              <div className="lg:col-span-4 space-y-6 flex flex-col">
+                {/* Inspector */}
+                <div className="p-5 rounded-2xl flex-1" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                  <div className="flex items-center justify-between pb-3" style={{borderBottom:'1px solid #2A303A'}}>
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full animate-ping" style={{backgroundColor:'#19B887'}}></span>
+                      <span className="text-xs font-bold uppercase tracking-wider" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>Inspetor Operacional</span>
+                    </div>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded" style={{backgroundColor:'#1C2028',color:'#19B887',border:'1px solid #2A303A',fontFamily:'JetBrains Mono'}}>DESTAQUE TOP 1</span>
+                  </div>
+                  {clienteInspecionado ? (
+                    <div className="mt-4 space-y-3">
                       <div>
-                        <p className="text-sm font-medium">{i.cliente}</p>
-                        <p className="text-xs text-gray-500">
-                          {i.cidade}
-                          {i.estacoes ? ` · ${i.estacoes} estações` : ''}
-                          {i.motivoCancelamento ? ` · ${i.motivoCancelamento}` : ''}
-                        </p>
+                        <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',textTransform:'uppercase'}}>Cliente em Foco</span>
+                        <h4 className="text-lg font-bold leading-tight" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>{clienteInspecionado.cliente}</h4>
+                        <p className="text-xs font-medium" style={{color:'#A8AFB9'}}>{clienteInspecionado.cidade}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                          <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',display:'block'}}>Receita Mensal</span>
+                          <span className="text-base font-bold" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>R$ {parseFloat(clienteInspecionado.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+                        </div>
+                        <div className="p-2.5 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                          <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',display:'block'}}>Papel Nycolas</span>
+                          <span className="text-xs font-semibold" style={{color:'#F1F3F5'}}>{statusConfig[clienteInspecionado.status]?.label||'—'}</span>
+                        </div>
+                      </div>
+                      <p className="text-xs italic" style={{color:'#707985'}}>Clique em outro cliente na tabela para inspecionar.</p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      {/* Mostra o top 1 por padrão */}
+                      {(() => {
+                        const top = [...implantacoes].filter(i=>i.status==='lider'||i.status==='sucesso').sort((a,b)=>(parseFloat(b.valor)||0)-(parseFloat(a.valor)||0))[0]
+                        if (!top) return <p className="text-xs" style={{color:'#707985'}}>Nenhum cliente cadastrado.</p>
+                        const share = receitaTotal > 0 ? ((parseFloat(top.valor)||0)/receitaTotal*100).toFixed(1) : 0
+                        return (
+                          <>
+                            <div>
+                              <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',textTransform:'uppercase'}}>Cliente em Foco</span>
+                              <h4 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>{top.cliente}</h4>
+                              <p className="text-xs" style={{color:'#A8AFB9'}}>{top.cidade}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="p-2.5 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                                <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',display:'block'}}>Receita Mensal</span>
+                                <span className="text-base font-bold" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>R$ {parseFloat(top.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}</span>
+                              </div>
+                              <div className="p-2.5 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                                <span style={{fontSize:'10px',fontFamily:'JetBrains Mono',color:'#707985',display:'block'}}>Papel Nycolas</span>
+                                <span className="text-xs font-semibold" style={{color:'#F1F3F5'}}>Analista Líder</span>
+                              </div>
+                            </div>
+                            <div className="p-3 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                              <div className="flex justify-between text-xs font-mono mb-1" style={{color:'#707985'}}>
+                                <span>Contribuição de Portfólio</span>
+                                <span style={{color:'#19B887',fontWeight:'bold'}}>{share}% da Receita</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{backgroundColor:'#0F1115',border:'1px solid #2A303A'}}>
+                                <div className="h-full rounded-full transition-all duration-500" style={{width:`${share}%`,backgroundColor:'#19B887'}}></div>
+                              </div>
+                            </div>
+                            <p className="text-xs italic" style={{color:'#707985'}}>Clique em um cliente na tabela para inspecionar.</p>
+                          </>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
+                {/* Donut status */}
+                <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                  <div className="flex items-center justify-between pb-2" style={{borderBottom:'1px solid #2A303A'}}>
+                    <h4 className="text-xs font-bold uppercase tracking-wider" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Status das Implantações</h4>
+                    <span style={{fontSize:'11px',fontFamily:'JetBrains Mono',color:'#707985'}}>{total} Registros</span>
+                  </div>
+                  <div className="py-4 flex items-center justify-center gap-6">
+                    <div className="relative w-32 h-32 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{background:total>0?`conic-gradient(#19B887 0% ${taxa}%, #E85D6A ${taxa}% 100%)`:'#2A303A'}}>
+                      <div className="w-20 h-20 rounded-full flex flex-col items-center justify-center" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                        <span className="text-xl font-bold" style={{color:'#F1F3F5',fontFamily:'JetBrains Mono'}}>{taxa}%</span>
+                        <span style={{fontSize:'9px',color:'#19B887',fontFamily:'JetBrains Mono',textTransform:'uppercase'}}>Sucesso</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
-                      {(i.status === 'lider' || i.status === 'sucesso') && (
-                        <p className="text-sm font-semibold text-emerald-400">
-                          R$ {parseFloat(i.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês
-                        </p>
-                      )}
-                      <button onClick={() => handleEditarImplantacao(i)} className="text-gray-600 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✎</button>
-                      <button onClick={() => handleRemover(i.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✕</button>
+                    <div className="space-y-2 text-xs" style={{fontFamily:'JetBrains Mono'}}>
+                      {[{cor:'#19B887',label:'Líder',val:lideres},{cor:'#4F8CFF',label:'Auxiliar',val:auxiliares},{cor:'#E85D6A',label:'Canceladas',val:canceladas}].map(s=>(
+                        <div key={s.label} className="flex items-center gap-2">
+                          <span className="w-3 h-3 rounded-sm" style={{backgroundColor:s.cor}}></span>
+                          <span style={{color:'#A8AFB9'}}>{s.label}: <strong style={{color:'#F1F3F5'}}>{s.val}</strong></span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Clientes */}
-        {!loading && aba === 'clientes' && (
-          <div className="space-y-4">
-            <input type="text" placeholder="Buscar cliente ou cidade..." value={busca}
-              onChange={e => setBusca(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtradas.map(i => {
-                const cfg = statusConfig[i.status] || statusConfig.cancelado
-                return (
-                  <div key={i.id} className="bg-gray-900 rounded-xl p-4 border border-gray-800 hover:border-emerald-800 transition-colors group relative">
-                    <div className="flex items-start justify-between mb-3">
-                      <span className={`w-2 h-2 rounded-full mt-1.5 ${cfg.cor}`}></span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
+                  <div className="space-y-1.5 pt-2" style={{borderTop:'1px solid #2A303A'}}>
+                    <div className="flex items-center justify-between text-xs" style={{fontFamily:'JetBrains Mono'}}>
+                      <span style={{color:'#707985'}}>Taxa de Aproveitamento</span>
+                      <span style={{color:'#19B887',fontWeight:'bold'}}>{taxa}%</span>
                     </div>
-                    <p className="font-semibold text-sm mb-1">{i.cliente}</p>
-                    <p className="text-xs text-gray-500 mb-1">{i.cidade}</p>
-                    {i.estacoes > 0 && <p className="text-xs text-gray-400 mb-2">🖥️ {i.estacoes} {i.estacoes === 1 ? 'estação' : 'estações'}</p>}
-                    {(i.status === 'lider' || i.status === 'sucesso') && (
-                      <p className="text-lg font-bold text-emerald-400">
-                        R$ {parseFloat(i.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        <span className="text-xs text-gray-500 font-normal">/mês</span>
-                      </p>
+                    <div className="w-full h-2 rounded-full overflow-hidden" style={{backgroundColor:'#0F1115',border:'1px solid #2A303A'}}>
+                      <div className="h-full rounded-full transition-all duration-700" style={{width:`${taxa}%`,backgroundColor:'#19B887'}}></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabela de implantações */}
+            <section className="p-5 rounded-2xl space-y-4" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold flex items-center gap-2" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>
+                    Todas as Implantações Realizadas
+                    <span style={{fontSize:'12px',color:'#707985',fontWeight:'normal',fontFamily:'JetBrains Mono'}}>({total} contratos)</span>
+                  </h3>
+                  <p style={{fontSize:'12px',color:'#707985'}}>Detalhamento contratual, status em produção e faturamento recorrente mensal (MRR)</p>
+                </div>
+                <div className="relative w-full sm:w-72">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3" style={{color:'#707985'}}>🔍</span>
+                  <input type="text" value={buscaTabela} onChange={e=>setBuscaTabela(e.target.value)}
+                    placeholder="Buscar por cliente, cidade ou estado..."
+                    className="w-full pl-9 pr-4 py-2 rounded-xl text-xs focus:outline-none transition"
+                    style={{backgroundColor:'#1C2028',border:'1px solid #2A303A',color:'#F1F3F5',fontFamily:'JetBrains Mono'}}/>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr style={{borderBottom:'1px solid #2A303A',backgroundColor:'#171A21'}}>
+                      {['Cliente / Razão Social','Localidade','Status Operacional','Estações','Receita Mensal (MRR)','Ações'].map(h=>(
+                        <th key={h} className="py-3 px-3" style={{fontSize:'11px',fontFamily:'JetBrains Mono',textTransform:'uppercase',color:'#707985'}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody style={{fontFamily:'JetBrains Mono',fontSize:'12px'}}>
+                    {filtradosTabela.map(i=>{
+                      const cfg = statusConfig[i.status]||statusConfig.cancelado
+                      const isAtivo = i.status==='lider'||i.status==='sucesso'
+                      return (
+                        <tr key={i.id} onClick={()=>setClienteInspecionado(i)}
+                          className="transition cursor-pointer group"
+                          style={{borderBottom:'1px solid #2A303A'}}
+                          onMouseEnter={e=>e.currentTarget.style.backgroundColor='#1C2028'}
+                          onMouseLeave={e=>e.currentTarget.style.backgroundColor='transparent'}>
+                          <td className="py-3.5 px-3">
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{backgroundColor:cfg.cor}}></span>
+                              <span className="font-bold text-sm" style={{color:'#F1F3F5',fontFamily:'Inter'}}>{i.cliente}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3" style={{color:'#A8AFB9'}}>{i.cidade}</td>
+                          <td className="py-3.5 px-3">
+                            <span className={`px-2.5 py-1 rounded-md text-xs font-semibold border ${cfg.badge}`}>{cfg.label}</span>
+                          </td>
+                          <td className="py-3.5 px-3 text-right" style={{color:i.estacoes?'#4F8CFF':'#707985'}}>
+                            {i.estacoes ? `${i.estacoes} est.` : 'Padrão'}
+                          </td>
+                          <td className="py-3.5 px-3 text-right font-bold text-sm" style={{color:isAtivo?cfg.cor:'#707985'}}>
+                            {isAtivo ? `R$ ${parseFloat(i.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}/mês` : 'Encerrado'}
+                          </td>
+                          <td className="py-3.5 px-3 text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={e=>{e.stopPropagation();editarImp(i)}} className="p-1 rounded transition" style={{color:'#707985'}}
+                                onMouseEnter={e=>e.currentTarget.style.color='#19B887'} onMouseLeave={e=>e.currentTarget.style.color='#707985'}>✎</button>
+                              <button onClick={e=>{e.stopPropagation();removerImp(i.id)}} className="p-1 rounded transition" style={{color:'#707985'}}
+                                onMouseEnter={e=>e.currentTarget.style.color='#E85D6A'} onMouseLeave={e=>e.currentTarget.style.color='#707985'}>✕</button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                    {filtradosTabela.length===0&&(
+                      <tr><td colSpan="6" className="py-8 text-center text-sm" style={{color:'#707985'}}>Nenhuma implantação encontrada.</td></tr>
                     )}
-                    {i.motivoCancelamento && <p className="text-xs text-red-400 mt-2 border-t border-gray-800 pt-2">Motivo: {i.motivoCancelamento}</p>}
-                    {i.observacao && <p className="text-xs text-gray-500 mt-1">{i.observacao}</p>}
-                    <button onClick={() => handleEditarImplantacao(i)}
-                      className="absolute top-3 right-3 text-gray-600 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✎</button>
-                  </div>
-                )
-              })}
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            </section>
           </div>
         )}
 
-        {/* Atendimentos */}
-        {aba === 'atendimentos' && (
+        {/* ── CLIENTES ── */}
+        {aba==='clientes'&&(
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {implantacoes.map(i=>{
+              const cfg=statusConfig[i.status]||statusConfig.cancelado
+              const isAtivo=i.status==='lider'||i.status==='sucesso'
+              return (
+                <div key={i.id} className="p-5 rounded-2xl group relative transition" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(25,184,135,0.4)'}
+                  onMouseLeave={e=>e.currentTarget.style.borderColor='#2A303A'}>
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="w-2.5 h-2.5 rounded-full mt-1" style={{backgroundColor:cfg.cor}}></span>
+                    <span className={`text-xs px-2.5 py-1 rounded-md font-semibold border ${cfg.badge}`}>{cfg.label}</span>
+                  </div>
+                  <p className="font-bold text-sm mb-1" style={{color:'#F1F3F5'}}>{i.cliente}</p>
+                  <p className="text-xs mb-2" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>{i.cidade}</p>
+                  {i.estacoes>0&&<p className="text-xs mb-2" style={{color:'#4F8CFF'}}>🖥️ {i.estacoes} estações</p>}
+                  {isAtivo&&<p className="text-lg font-bold" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>R$ {parseFloat(i.valor).toLocaleString('pt-BR',{minimumFractionDigits:2})}<span className="text-xs font-normal" style={{color:'#707985'}}>/mês</span></p>}
+                  {i.motivoCancelamento&&<p className="text-xs mt-2 pt-2" style={{color:'#E85D6A',borderTop:'1px solid #2A303A'}}>Motivo: {i.motivoCancelamento}</p>}
+                  <button onClick={()=>editarImp(i)} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition" style={{color:'#707985',fontSize:'12px'}}>✎</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── ATENDIMENTOS ── */}
+        {aba==='atendimentos'&&(
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold">Registro de Atendimentos</h2>
-                <p className="text-sm text-gray-400">{atendimentos.length} casos registrados · média ~10/mês</p>
+                <h2 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Registro de Atendimentos</h2>
+                <p className="text-sm" style={{color:'#707985'}}>{atendimentos.length} casos registrados</p>
               </div>
-              <button onClick={() => { setMostrarFormAtendimento(!mostrarFormAtendimento); setEditandoAtendimento(null); setFormAtendimento(formAtendimentoVazio) }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                + Registrar
-              </button>
+              <button onClick={()=>setMostrarFormAt(!mostrarFormAt)} className="text-xs font-bold px-4 py-2 rounded-lg" style={{backgroundColor:'#19B887',color:'#0F1115'}}>+ Registrar</button>
             </div>
-            {mostrarFormAtendimento && (
-              <div className="bg-gray-900 rounded-xl p-5 border border-emerald-800">
-                <h3 className="font-semibold mb-4 text-sm">{editandoAtendimento ? 'Editar atendimento' : 'Novo atendimento'}</h3>
-                <form onSubmit={handleSalvarAtendimento} className="space-y-3">
+            {mostrarFormAt&&(
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #19B887',borderOpacity:0.4}}>
+                <h3 className="font-semibold mb-4 text-sm" style={{color:'#F1F3F5'}}>{editandoAt?'Editar atendimento':'Novo atendimento'}</h3>
+                <form onSubmit={salvarAt} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Tipo *</label>
-                      <select value={formAtendimento.tipo} onChange={e => setFormAtendimento({...formAtendimento, tipo: e.target.value})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        {tiposAtendimento.map(t => <option key={t} value={t}>{t}</option>)}
+                      <label style={labelStyle}>Tipo *</label>
+                      <select value={formAt.tipo} onChange={e=>setFormAt({...formAt,tipo:e.target.value})} style={inputStyle}>
+                        {tiposAtendimento.map(t=><option key={t}>{t}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Cliente</label>
-                      <input type="text" value={formAtendimento.cliente} onChange={e => setFormAtendimento({...formAtendimento, cliente: e.target.value})}
-                        placeholder="Nome do cliente"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+                      <label style={labelStyle}>Cliente</label>
+                      <input type="text" value={formAt.cliente} onChange={e=>setFormAt({...formAt,cliente:e.target.value})} placeholder="Nome do cliente" style={inputStyle}/>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Data</label>
-                      <input type="date" value={formAtendimento.data} onChange={e => setFormAtendimento({...formAtendimento, data: e.target.value})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500" />
+                      <label style={labelStyle}>Data</label>
+                      <input type="date" value={formAt.data} onChange={e=>setFormAt({...formAt,data:e.target.value})} style={inputStyle}/>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Nº do Caso (Salesforce)</label>
-                      <input type="text" value={formAtendimento.numeroCaso} onChange={e => setFormAtendimento({...formAtendimento, numeroCaso: e.target.value})}
-                        placeholder="Ex: 00123456" maxLength={8}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
+                      <label style={labelStyle}>Nº do Caso (Salesforce)</label>
+                      <input type="text" value={formAt.numeroCaso} onChange={e=>setFormAt({...formAt,numeroCaso:e.target.value})} placeholder="00123456" maxLength={8} style={inputStyle}/>
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Descrição</label>
-                    <textarea value={formAtendimento.descricao} onChange={e => setFormAtendimento({...formAtendimento, descricao: e.target.value})}
-                      placeholder="Descreva o caso brevemente..."
-                      rows={2} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none" />
+                    <label style={labelStyle}>Descrição</label>
+                    <textarea value={formAt.descricao} onChange={e=>setFormAt({...formAt,descricao:e.target.value})} rows={2} style={{...inputStyle,resize:'none'}}/>
                   </div>
                   <div className="flex gap-2">
-                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                      {editandoAtendimento ? 'Salvar alterações' : 'Salvar'}
-                    </button>
-                    <button type="button" onClick={() => { setMostrarFormAtendimento(false); setEditandoAtendimento(null); setFormAtendimento(formAtendimentoVazio) }}
-                      className="text-gray-400 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+                    <button type="submit" className="text-sm font-bold px-4 py-2 rounded-lg" style={{backgroundColor:'#19B887',color:'#0F1115'}}>{editandoAt?'Salvar':'Registrar'}</button>
+                    <button type="button" onClick={()=>{setMostrarFormAt(false);setEditandoAt(null);setFormAt(formAtVazio)}} className="text-sm px-4 py-2 rounded-lg" style={{color:'#707985'}}>Cancelar</button>
                   </div>
                 </form>
               </div>
             )}
-            {dadosAtendimentos.length > 0 && (
-              <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-                <h3 className="font-semibold mb-4 text-sm text-gray-300">Atendimentos por tipo</h3>
+            {atendimentos.length>0&&(
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={dadosAtendimentos} layout="vertical">
-                    <XAxis type="number" stroke="#4b5563" tick={{ fill: '#9ca3af', fontSize: 11 }} />
-                    <YAxis type="category" dataKey="tipo" stroke="#4b5563" tick={{ fill: '#9ca3af', fontSize: 11 }} width={120} />
-                    <Tooltip contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px' }} />
-                    <Bar dataKey="total" fill="#34d399" radius={[0, 4, 4, 0]} />
+                  <BarChart data={tiposAtendimento.map(t=>({tipo:t.split(' ').slice(0,2).join(' '),total:atendimentos.filter(a=>a.tipo===t).length})).filter(d=>d.total>0)} layout="vertical">
+                    <XAxis type="number" stroke="#2A303A" tick={{fill:'#707985',fontSize:11,fontFamily:'JetBrains Mono'}}/>
+                    <YAxis type="category" dataKey="tipo" stroke="#2A303A" tick={{fill:'#707985',fontSize:11}} width={130}/>
+                    <Tooltip contentStyle={{backgroundColor:'#1C2028',border:'1px solid #2A303A',borderRadius:'8px',color:'#F1F3F5'}}/>
+                    <Bar dataKey="total" fill="#19B887" radius={[0,4,4,0]}/>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
-            <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-800">
-                <h3 className="font-semibold text-sm">Histórico</h3>
-              </div>
-              {atendimentos.length === 0 && (
-                <div className="px-5 py-8 text-center text-gray-500 text-sm">Nenhum atendimento registrado ainda.</div>
-              )}
-              {atendimentos.map(a => (
-                <div key={a.id} className="px-5 py-3 border-b border-gray-800 flex items-start justify-between hover:bg-gray-800 transition-colors group">
-                  <div className="flex items-start gap-3">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 flex-shrink-0"></span>
-                    <div>
-                      <p className="text-sm font-medium">{a.tipo}</p>
-                      {a.cliente && <p className="text-xs text-gray-500">{a.cliente}</p>}
-                      {a.descricao && <p className="text-xs text-gray-400 mt-0.5">{a.descricao}</p>}
-                      {a.numeroCaso && <p className="text-xs text-blue-400 mt-0.5">Caso #{a.numeroCaso}</p>}
+            <div className="rounded-2xl overflow-hidden" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+              {atendimentos.length===0?<p className="p-8 text-center text-sm" style={{color:'#707985'}}>Nenhum atendimento registrado ainda.</p>:
+                atendimentos.map(a=>(
+                  <div key={a.id} className="px-5 py-3 flex items-start justify-between group transition" style={{borderBottom:'1px solid #2A303A'}}
+                    onMouseEnter={e=>e.currentTarget.style.backgroundColor='#1C2028'} onMouseLeave={e=>e.currentTarget.style.backgroundColor='transparent'}>
+                    <div className="flex items-start gap-3">
+                      <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{backgroundColor:'#19B887'}}></span>
+                      <div>
+                        <p className="text-sm font-medium" style={{color:'#F1F3F5'}}>{a.tipo}</p>
+                        {a.cliente&&<p className="text-xs" style={{color:'#707985'}}>{a.cliente}</p>}
+                        {a.descricao&&<p className="text-xs" style={{color:'#A8AFB9'}}>{a.descricao}</p>}
+                        {a.numeroCaso&&<p className="text-xs" style={{color:'#4F8CFF',fontFamily:'JetBrains Mono'}}>Caso #{a.numeroCaso}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {a.data&&<span className="text-xs" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>{a.data}</span>}
+                      <button onClick={()=>{setFormAt({tipo:a.tipo,descricao:a.descricao||'',cliente:a.cliente||'',data:a.data||'',numeroCaso:a.numeroCaso||''});setEditandoAt(a.id);setMostrarFormAt(true)}} className="opacity-0 group-hover:opacity-100 text-xs" style={{color:'#707985'}}>✎</button>
+                      <button onClick={()=>removerAt(a.id)} className="opacity-0 group-hover:opacity-100 text-xs" style={{color:'#707985'}}>✕</button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {a.data && <span className="text-xs text-gray-500">{a.data}</span>}
-                    <button onClick={() => handleEditarAtendimento(a)} className="text-gray-600 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✎</button>
-                    <button onClick={() => handleRemoverAtendimento(a.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✕</button>
-                  </div>
-                </div>
-              ))}
+                ))
+              }
             </div>
           </div>
         )}
 
-        {/* Cases */}
-        {aba === 'cases' && (
+        {/* ── CASES ── */}
+        {aba==='cases'&&(
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold mb-1">Cases & Projetos</h2>
-                <p className="text-sm text-gray-400">Customizações e soluções desenvolvidas para clientes</p>
+                <h2 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Cases & Projetos</h2>
+                <p className="text-sm" style={{color:'#707985'}}>Customizações e soluções desenvolvidas para clientes</p>
               </div>
-              <button onClick={() => { setMostrarFormCase(!mostrarFormCase); setEditandoCase(null); setFormCase(formCaseVazio) }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                + Adicionar case
-              </button>
+              <button onClick={()=>setMostrarFormCase(!mostrarFormCase)} className="text-xs font-bold px-4 py-2 rounded-lg" style={{backgroundColor:'#19B887',color:'#0F1115'}}>+ Adicionar case</button>
             </div>
-            {mostrarFormCase && (
-              <div className="bg-gray-900 rounded-xl p-5 border border-emerald-800">
-                <h3 className="font-semibold mb-4 text-sm">{editandoCase ? 'Editar case' : 'Novo case'}</h3>
-                <form onSubmit={handleSalvarCase} className="space-y-3">
+            {mostrarFormCase&&(
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                <form onSubmit={salvarCase} className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Título *</label>
-                      <input type="text" value={formCase.titulo} onChange={e => setFormCase({...formCase, titulo: e.target.value})}
-                        placeholder="Ex: Etiqueta automática com promoção"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Cliente</label>
-                      <input type="text" value={formCase.cliente} onChange={e => setFormCase({...formCase, cliente: e.target.value})}
-                        placeholder="Ex: Atacarejo São José"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                    </div>
+                    <div><label style={labelStyle}>Título *</label><input type="text" value={formCase.titulo} onChange={e=>setFormCase({...formCase,titulo:e.target.value})} placeholder="Ex: Etiqueta automática" style={inputStyle}/></div>
+                    <div><label style={labelStyle}>Cliente</label><input type="text" value={formCase.cliente} onChange={e=>setFormCase({...formCase,cliente:e.target.value})} placeholder="Ex: Atacarejo São José" style={inputStyle}/></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Tipo</label>
-                      <select value={formCase.tipo} onChange={e => setFormCase({...formCase, tipo: e.target.value})}
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                        <option>Layout FR3</option>
-                        <option>Customização de banco</option>
-                        <option>Automação</option>
-                        <option>Suporte técnico</option>
-                        <option>Configuração fiscal</option>
-                        <option>Outro</option>
+                      <label style={labelStyle}>Tipo</label>
+                      <select value={formCase.tipo} onChange={e=>setFormCase({...formCase,tipo:e.target.value})} style={inputStyle}>
+                        {['Layout FR3','Customização de banco','Automação','Suporte técnico','Configuração fiscal','Outro'].map(t=><option key={t}>{t}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-400 mb-1 block">Tags (separadas por vírgula)</label>
-                      <input type="text" value={formCase.tags} onChange={e => setFormCase({...formCase, tags: e.target.value})}
-                        placeholder="Ex: FR3, Automação, Varejo"
-                        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                    </div>
+                    <div><label style={labelStyle}>Tags (vírgula)</label><input type="text" value={formCase.tags} onChange={e=>setFormCase({...formCase,tags:e.target.value})} placeholder="FR3, Automação" style={inputStyle}/></div>
                   </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Descrição *</label>
-                    <textarea value={formCase.descricao} onChange={e => setFormCase({...formCase, descricao: e.target.value})}
-                      placeholder="Descreva o que foi desenvolvido..."
-                      rows={3} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Impacto gerado</label>
-                    <input type="text" value={formCase.impacto} onChange={e => setFormCase({...formCase, impacto: e.target.value})}
-                      placeholder="Ex: Eliminou erro humano e acelerou o processo"
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                  </div>
+                  <div><label style={labelStyle}>Descrição *</label><textarea value={formCase.descricao} onChange={e=>setFormCase({...formCase,descricao:e.target.value})} rows={3} style={{...inputStyle,resize:'none'}}/></div>
+                  <div><label style={labelStyle}>Impacto gerado</label><input type="text" value={formCase.impacto} onChange={e=>setFormCase({...formCase,impacto:e.target.value})} placeholder="Ex: Eliminou erro humano" style={inputStyle}/></div>
                   <div className="flex gap-2">
-                    <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors">
-                      {editandoCase ? 'Salvar alterações' : 'Adicionar case'}
-                    </button>
-                    <button type="button" onClick={() => { setMostrarFormCase(false); setEditandoCase(null); setFormCase(formCaseVazio) }}
-                      className="text-gray-400 hover:text-white text-sm px-4 py-2 rounded-lg transition-colors">Cancelar</button>
+                    <button type="submit" className="text-sm font-bold px-4 py-2 rounded-lg" style={{backgroundColor:'#19B887',color:'#0F1115'}}>{editandoCase?'Salvar':'Adicionar'}</button>
+                    <button type="button" onClick={()=>{setMostrarFormCase(false);setEditandoCase(null);setFormCase(formCaseVazio)}} className="text-sm px-4 py-2 rounded-lg" style={{color:'#707985'}}>Cancelar</button>
                   </div>
                 </form>
               </div>
             )}
             <div className="space-y-4">
-              {cases.map((c) => (
-                <div key={c.id} className="bg-gray-900 rounded-xl p-5 border border-gray-800 hover:border-emerald-800 transition-colors group">
+              {cases.map(c=>(
+                <div key={c.id} className="p-5 rounded-2xl group transition" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}
+                  onMouseEnter={e=>e.currentTarget.style.borderColor='rgba(25,184,135,0.4)'} onMouseLeave={e=>e.currentTarget.style.borderColor='#2A303A'}>
                   <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-bold text-base mb-0.5">{c.titulo}</h3>
-                      <p className="text-sm text-emerald-400">{c.cliente}</p>
-                    </div>
+                    <div><h3 className="font-bold text-base" style={{color:'#F1F3F5'}}>{c.titulo}</h3><p className="text-sm" style={{color:'#19B887'}}>{c.cliente}</p></div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">{c.tipo}</span>
-                      <button onClick={() => handleEditarCase(c)} className="text-gray-600 hover:text-emerald-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✎</button>
-                      <button onClick={() => handleRemoverCase(c.id)} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all text-xs">✕</button>
+                      <span className="text-xs px-2 py-1 rounded-full" style={{backgroundColor:'#1C2028',color:'#707985',border:'1px solid #2A303A'}}>{c.tipo}</span>
+                      <button onClick={()=>{setFormCase({titulo:c.titulo,cliente:c.cliente||'',tipo:c.tipo,descricao:c.descricao,impacto:c.impacto||'',tags:c.tags||''});setEditandoCase(c.id);setMostrarFormCase(true)}} className="opacity-0 group-hover:opacity-100 text-xs" style={{color:'#707985'}}>✎</button>
+                      <button onClick={()=>removerCase(c.id)} className="opacity-0 group-hover:opacity-100 text-xs" style={{color:'#707985'}}>✕</button>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-300 mb-3 leading-relaxed">{c.descricao}</p>
-                  {c.impacto && (
-                    <div className="flex items-start gap-2 bg-emerald-950 rounded-lg p-3 mb-3">
-                      <span className="text-emerald-400 text-xs mt-0.5">▸</span>
-                      <p className="text-xs text-emerald-300">{c.impacto}</p>
-                    </div>
-                  )}
-                  {c.tags && (
-                    <div className="flex gap-2 flex-wrap">
-                      {c.tags.split(',').map(tag => (
-                        <span key={tag} className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">{tag.trim()}</span>
-                      ))}
-                    </div>
-                  )}
+                  <p className="text-sm mb-3 leading-relaxed" style={{color:'#A8AFB9'}}>{c.descricao}</p>
+                  {c.impacto&&<div className="flex items-start gap-2 p-3 rounded-xl mb-3" style={{backgroundColor:'rgba(25,184,135,0.05)',border:'1px solid rgba(25,184,135,0.15)'}}><span style={{color:'#19B887',fontSize:'12px'}}>▸</span><p className="text-xs" style={{color:'#19B887'}}>{c.impacto}</p></div>}
+                  {c.tags&&<div className="flex gap-2 flex-wrap">{c.tags.split(',').map(t=><span key={t} className="text-xs px-2 py-0.5 rounded" style={{backgroundColor:'#1C2028',color:'#707985',border:'1px solid #2A303A'}}>{t.trim()}</span>)}</div>}
                 </div>
               ))}
-              {cases.length === 0 && (
-                <div className="bg-gray-900 rounded-xl p-5 border border-dashed border-gray-700 text-center">
-                  <p className="text-gray-500 text-sm">Nenhum case registrado ainda</p>
-                  <p className="text-gray-600 text-xs mt-1">Clique em "+ Adicionar case" para começar</p>
-                </div>
-              )}
+              {cases.length===0&&<div className="p-8 rounded-2xl text-center" style={{backgroundColor:'#171A21',border:'1px dashed #2A303A'}}><p className="text-sm" style={{color:'#707985'}}>Nenhum case registrado ainda</p></div>}
             </div>
           </div>
         )}
 
-        {/* Carreira */}
-        {aba === 'carreira' && (
+        {/* ── CARREIRA ── */}
+        {aba==='carreira'&&(
           <div className="space-y-4">
-            <div className="mb-6">
-              <h2 className="text-lg font-bold mb-1">Trajetória na Ganso Sistemas</h2>
-              <p className="text-sm text-gray-400">Promoção em menos de 9 meses de empresa</p>
-            </div>
+            <div className="mb-6"><h2 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Trajetória na Ganso Sistemas</h2><p className="text-sm" style={{color:'#707985'}}>Promoção em menos de 9 meses de empresa</p></div>
             <div className="relative">
-              <div className="absolute left-6 top-0 bottom-0 w-px bg-gray-800"></div>
+              <div className="absolute left-6 top-0 bottom-0 w-px" style={{backgroundColor:'#2A303A'}}></div>
               <div className="space-y-6">
-                {timelineInicial.map((item, idx) => (
+                {timelineInicial.map((item,idx)=>(
                   <div key={idx} className="relative pl-16">
-                    <div className={`absolute left-4 top-1 w-4 h-4 rounded-full border-2 ${item.atual ? 'bg-emerald-400 border-emerald-400' : 'bg-gray-700 border-gray-600'}`}></div>
-                    {item.atual && <div className="absolute left-4 top-1 w-4 h-4 rounded-full bg-emerald-400 animate-ping opacity-30"></div>}
-                    <div className={`bg-gray-900 rounded-xl p-5 border ${item.atual ? 'border-emerald-800' : 'border-gray-800'}`}>
+                    <div className={`absolute left-4 top-1 w-4 h-4 rounded-full border-2`} style={{backgroundColor:item.atual?'#19B887':'#2A303A',borderColor:item.atual?'#19B887':'#707985'}}></div>
+                    {item.atual&&<div className="absolute left-4 top-1 w-4 h-4 rounded-full animate-ping opacity-30" style={{backgroundColor:'#19B887'}}></div>}
+                    <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:`1px solid ${item.atual?'rgba(25,184,135,0.4)':'#2A303A'}`}}>
                       <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="font-bold text-base">{item.cargo}</h3>
-                          <p className="text-sm text-emerald-400">{item.empresa}</p>
-                        </div>
+                        <div><h3 className="font-bold text-base" style={{color:'#F1F3F5'}}>{item.cargo}</h3><p className="text-sm" style={{color:'#19B887'}}>{item.empresa}</p></div>
                         <div className="text-right">
-                          <p className="text-xs text-gray-400">{item.inicio} — {item.fim ?? 'atual'}</p>
-                          {item.atual && <span className="text-xs bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full mt-1 inline-block">atual</span>}
+                          <p className="text-xs" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>{item.inicio} — {item.fim??'atual'}</p>
+                          {item.atual&&<span className="text-xs px-2 py-0.5 rounded-full" style={{backgroundColor:'rgba(25,184,135,0.1)',color:'#19B887',border:'1px solid rgba(25,184,135,0.3)'}}>atual</span>}
                         </div>
                       </div>
-                      <p className="text-sm text-gray-400 mb-4">{item.descricao}</p>
+                      <p className="text-sm mb-4" style={{color:'#A8AFB9'}}>{item.descricao}</p>
                       <div className="space-y-1.5">
-                        {item.marcos.map((marco, i) => (
+                        {item.marcos.map((m,i)=>(
                           <div key={i} className="flex items-start gap-2">
-                            <span className="text-emerald-400 mt-0.5 flex-shrink-0">▸</span>
-                            <p className="text-xs text-gray-300">{marco}</p>
+                            <span style={{color:'#19B887',flexShrink:0}}>▸</span>
+                            <p className="text-xs" style={{color:'#A8AFB9'}}>{m}</p>
                           </div>
                         ))}
                       </div>
@@ -1030,53 +943,43 @@ export default function App() {
           </div>
         )}
 
-        {/* Habilidades */}
-        {aba === 'habilidades' && (
+        {/* ── HABILIDADES ── */}
+        {aba==='habilidades'&&(
           <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold mb-1">Habilidades Técnicas</h2>
-              <p className="text-sm text-gray-400">Clique em qualquer habilidade para editar</p>
-            </div>
+            <div><h2 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Habilidades Técnicas</h2><p className="text-sm" style={{color:'#707985'}}>Clique para editar</p></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {habilidades.map((cat, catIdx) => (
-                <div key={catIdx} className="bg-gray-900 rounded-xl p-5 border border-gray-800">
+              {habilidades.map((cat,catIdx)=>(
+                <div key={catIdx} className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
                   <div className="flex items-center gap-2 mb-4">
                     <span className="text-xl">{cat.icone}</span>
-                    <h3 className="font-semibold text-sm text-gray-300">{cat.categoria}</h3>
+                    <h3 className="font-semibold text-sm" style={{color:'#A8AFB9'}}>{cat.categoria}</h3>
                   </div>
                   <div className="space-y-4">
-                    {cat.itens.map((item, itemIdx) => (
+                    {cat.itens.map((item,itemIdx)=>(
                       <div key={itemIdx} className="group">
-                        {editandoHabilidade?.catIdx === catIdx && editandoHabilidade?.itemIdx === itemIdx ? (
-                          <div className="space-y-2 bg-gray-800 rounded-lg p-3">
-                            <p className="text-xs text-gray-400 font-medium">{item.nome}</p>
+                        {editandoHabilidade?.catIdx===catIdx&&editandoHabilidade?.itemIdx===itemIdx?(
+                          <div className="space-y-2 p-3 rounded-xl" style={{backgroundColor:'#1C2028'}}>
+                            <p className="text-xs font-medium" style={{color:'#707985'}}>{item.nome}</p>
                             <div className="flex items-center gap-2">
-                              <input type="range" min="0" max="100" value={formHabilidade.nivel}
-                                onChange={e => setFormHabilidade({...formHabilidade, nivel: e.target.value})}
-                                className="flex-1" />
-                              <span className="text-xs text-emerald-400 font-bold w-8">{formHabilidade.nivel}%</span>
+                              <input type="range" min="0" max="100" value={formHabilidade.nivel} onChange={e=>setFormHabilidade({...formHabilidade,nivel:e.target.value})} className="flex-1"/>
+                              <span className="text-xs font-bold w-8" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>{formHabilidade.nivel}%</span>
                             </div>
-                            <input type="text" value={formHabilidade.descricao}
-                              onChange={e => setFormHabilidade({...formHabilidade, descricao: e.target.value})}
-                              className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-emerald-500" />
+                            <input type="text" value={formHabilidade.descricao} onChange={e=>setFormHabilidade({...formHabilidade,descricao:e.target.value})} style={{...inputStyle,fontSize:'11px',padding:'6px 10px'}}/>
                             <div className="flex gap-2">
-                              <button onClick={handleSalvarHabilidade} className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded transition-colors">Salvar</button>
-                              <button onClick={() => setEditandoHabilidade(null)} className="text-xs text-gray-400 hover:text-white px-3 py-1 rounded transition-colors">Cancelar</button>
+                              <button onClick={salvarHab} className="text-xs px-3 py-1 rounded-lg font-bold" style={{backgroundColor:'#19B887',color:'#0F1115'}}>Salvar</button>
+                              <button onClick={()=>setEditandoHabilidade(null)} className="text-xs px-3 py-1 rounded-lg" style={{color:'#707985'}}>Cancelar</button>
                             </div>
                           </div>
-                        ) : (
-                          <div className="cursor-pointer" onClick={() => handleEditarHabilidade(catIdx, itemIdx)}>
+                        ):(
+                          <div className="cursor-pointer" onClick={()=>{setFormHabilidade({nivel:item.nivel,descricao:item.descricao});setEditandoHabilidade({catIdx,itemIdx})}}>
                             <div className="flex justify-between items-center mb-1">
-                              <p className="text-sm font-medium group-hover:text-emerald-400 transition-colors">{item.nome}</p>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-emerald-400 font-semibold">{item.nivel}%</span>
-                                <span className="text-gray-600 group-hover:text-emerald-400 text-xs opacity-0 group-hover:opacity-100 transition-all">✎</span>
-                              </div>
+                              <p className="text-sm font-medium" style={{color:'#A8AFB9'}}>{item.nome}</p>
+                              <span className="text-xs font-semibold" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>{item.nivel}%</span>
                             </div>
-                            <div className="w-full bg-gray-800 rounded-full h-1.5 mb-1">
-                              <div className="bg-emerald-400 h-1.5 rounded-full" style={{ width: `${item.nivel}%` }} />
+                            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{backgroundColor:'#1C2028'}}>
+                              <div className="h-1.5 rounded-full" style={{width:`${item.nivel}%`,backgroundColor:'#19B887'}}/>
                             </div>
-                            <p className="text-xs text-gray-500">{item.descricao}</p>
+                            <p className="text-xs mt-1" style={{color:'#707985'}}>{item.descricao}</p>
                           </div>
                         )}
                       </div>
@@ -1088,78 +991,120 @@ export default function App() {
           </div>
         )}
 
-        {/* Adicionar / Editar */}
-        {aba === 'adicionar' && (
+        {/* ── RESUMO EXECUTIVO ── */}
+        {aba==='resumo'&&(
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <div><h2 className="text-lg font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Resumo Executivo</h2><p className="text-sm" style={{color:'#707985'}}>Dossiê profissional para avaliação de desempenho</p></div>
+              <button onClick={()=>window.print()} className="flex items-center gap-2 text-xs font-bold px-4 py-2 rounded-lg" style={{backgroundColor:'#19B887',color:'#0F1115'}}>↓ Exportar PDF</button>
+            </div>
+            <div className="space-y-6">
+              <div className="p-8 rounded-2xl" style={{background:'linear-gradient(135deg, rgba(25,184,135,0.15) 0%, rgba(23,26,33,1) 60%)',border:'1px solid rgba(25,184,135,0.3)'}}>
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                    <span className="text-3xl font-black" style={{color:'#19B887',fontFamily:'Space Grotesk'}}>NN</span>
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>Nycolas Neves</h1>
+                    <p className="font-semibold text-lg mt-1" style={{color:'#19B887'}}>Assistente de Implantação II</p>
+                    <p className="text-sm mt-1" style={{color:'#A8AFB9'}}>Ganso Sistemas · Campo Grande, MS</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor:'#19B887'}}></span>
+                      <span className="text-xs" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>Mai/2025 — presente · 1 ano e 4 meses</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[{v:lideres,l:'Implantações como\nAnalista Líder',c:'#19B887'},{v:auxiliares,l:'Implantações como\nAnalista Auxiliar',c:'#4F8CFF'},{v:`R$${(receitaTotal/1000).toFixed(1)}k`,l:'Receita mensal\ngerada',c:'#19B887'},{v:`${taxa}%`,l:'Taxa de\naproveitamento',c:'#19B887'}].map((m,i)=>(
+                  <div key={i} className="p-5 rounded-2xl text-center" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                    <p className="text-4xl font-bold" style={{color:m.c,fontFamily:'JetBrains Mono'}}>{m.v}</p>
+                    <p className="text-xs mt-2 whitespace-pre-line" style={{color:'#707985'}}>{m.l}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                <h3 className="font-semibold mb-4 text-sm" style={{color:'#A8AFB9'}}>Trajetória na empresa</h3>
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 p-4 rounded-xl" style={{backgroundColor:'#1C2028',border:'1px solid #2A303A'}}>
+                    <p className="text-xs mb-1" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>Mai 2025 — Jan 2026</p>
+                    <p className="font-semibold text-sm" style={{color:'#F1F3F5'}}>Auxiliar de Implantação</p>
+                  </div>
+                  <span style={{color:'#19B887',fontSize:'20px',fontWeight:'bold'}}>→</span>
+                  <div className="flex-1 p-4 rounded-xl" style={{backgroundColor:'rgba(25,184,135,0.05)',border:'1px solid rgba(25,184,135,0.3)'}}>
+                    <p className="text-xs mb-1" style={{color:'#19B887',fontFamily:'JetBrains Mono'}}>Fev 2026 — atual</p>
+                    <p className="font-semibold text-sm" style={{color:'#19B887'}}>Assistente de Implantação II</p>
+                    <p className="text-xs" style={{color:'#707985'}}>Promoção em menos de 9 meses</p>
+                  </div>
+                </div>
+              </div>
+              {cases.length>0&&(
+                <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                  <h3 className="font-semibold mb-4 text-sm" style={{color:'#A8AFB9'}}>Cases & Projetos desenvolvidos</h3>
+                  <div className="space-y-3">
+                    {cases.slice(0,3).map((c,i)=>(
+                      <div key={i} className="flex items-start gap-3 pb-3" style={{borderBottom:'1px solid #2A303A'}}>
+                        <span style={{color:'#19B887',fontWeight:'bold',flexShrink:0}}>▸</span>
+                        <div><p className="text-sm font-semibold" style={{color:'#F1F3F5'}}>{c.titulo}</p><p className="text-xs" style={{color:'#19B887'}}>{c.cliente} · {c.tipo}</p>{c.impacto&&<p className="text-xs" style={{color:'#707985'}}>{c.impacto}</p>}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="p-5 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+                <h3 className="font-semibold mb-4 text-sm" style={{color:'#A8AFB9'}}>Clientes implantados</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {implantacoes.filter(i=>i.status==='lider'||i.status==='sucesso').map((i,idx)=>(
+                    <div key={idx} className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor:'#19B887'}}></span><p className="text-xs" style={{color:'#A8AFB9'}}>{i.cliente}</p></div>
+                  ))}
+                </div>
+              </div>
+              <div className="text-center py-4" style={{borderTop:'1px solid #2A303A'}}>
+                <p className="text-xs" style={{color:'#707985',fontFamily:'JetBrains Mono'}}>Portfólio gerado em {new Date().toLocaleDateString('pt-BR')} · Nycolas Neves · Ganso Sistemas</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── ADICIONAR / EDITAR ── */}
+        {aba==='adicionar'&&(
           <div className="max-w-lg">
-            <div className="bg-gray-900 rounded-xl p-6 border border-gray-800">
-              <h2 className="font-semibold mb-5">{editandoImplantacao ? 'Editar implantação' : 'Nova implantação'}</h2>
-              <form onSubmit={handleSalvarImplantacao} className="space-y-4">
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Nome do cliente *</label>
-                  <input type="text" value={form.cliente} onChange={e => setForm({...form, cliente: e.target.value})}
-                    placeholder="Ex: Supermercado XYZ"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                </div>
+            <div className="p-6 rounded-2xl" style={{backgroundColor:'#171A21',border:'1px solid #2A303A'}}>
+              <h2 className="font-semibold mb-5" style={{color:'#F1F3F5',fontFamily:'Space Grotesk'}}>{editandoImp?'Editar implantação':'Nova implantação'}</h2>
+              <form onSubmit={salvarImp} className="space-y-4">
+                <div><label style={labelStyle}>Nome do cliente *</label><input type="text" value={form.cliente} onChange={e=>setForm({...form,cliente:e.target.value})} placeholder="Ex: Supermercado XYZ" style={inputStyle}/></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Valor mensal (R$)</label>
-                    <input type="number" value={form.valor} onChange={e => setForm({...form, valor: e.target.value})}
-                      placeholder="0,00"
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Estações</label>
-                    <input type="number" value={form.estacoes} onChange={e => setForm({...form, estacoes: e.target.value})}
-                      placeholder="Nº de PCs"
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                  </div>
+                  <div><label style={labelStyle}>Valor mensal (R$)</label><input type="number" value={form.valor} onChange={e=>setForm({...form,valor:e.target.value})} placeholder="0,00" style={inputStyle}/></div>
+                  <div><label style={labelStyle}>Estações</label><input type="number" value={form.estacoes} onChange={e=>setForm({...form,estacoes:e.target.value})} placeholder="Nº de PCs" style={inputStyle}/></div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Status *</label>
-                  <select value={form.status} onChange={e => setForm({...form, status: e.target.value})}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500">
+                  <label style={labelStyle}>Status *</label>
+                  <select value={form.status} onChange={e=>setForm({...form,status:e.target.value})} style={inputStyle}>
                     <option value="lider">Ativa - Analista Líder</option>
                     <option value="auxiliar">Ativa - Analista Auxiliar</option>
                     <option value="cancelado">Cancelada</option>
                   </select>
                 </div>
-                {form.status === 'cancelado' && (
-                  <div>
-                    <label className="text-xs text-gray-400 mb-1 block">Motivo do cancelamento</label>
-                    <input type="text" value={form.motivoCancelamento} onChange={e => setForm({...form, motivoCancelamento: e.target.value})}
-                      placeholder="Ex: instabilidade no sistema, dificuldade financeira..."
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                  </div>
-                )}
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Cidade</label>
-                  <input type="text" value={form.cidade} onChange={e => setForm({...form, cidade: e.target.value})}
-                    placeholder="Ex: Campo Grande - MS"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block">Observação (opcional)</label>
-                  <textarea value={form.observacao} onChange={e => setForm({...form, observacao: e.target.value})}
-                    placeholder="Setor, particularidades da implantação..."
-                    rows={3} className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 resize-none" />
-                </div>
+                {form.status==='cancelado'&&<div><label style={labelStyle}>Motivo do cancelamento</label><input type="text" value={form.motivoCancelamento} onChange={e=>setForm({...form,motivoCancelamento:e.target.value})} placeholder="Ex: dificuldade financeira..." style={inputStyle}/></div>}
+                <div><label style={labelStyle}>Cidade</label><input type="text" value={form.cidade} onChange={e=>setForm({...form,cidade:e.target.value})} placeholder="Ex: Campo Grande - MS" style={inputStyle}/></div>
+                <div><label style={labelStyle}>Observação (opcional)</label><textarea value={form.observacao} onChange={e=>setForm({...form,observacao:e.target.value})} rows={3} style={{...inputStyle,resize:'none'}}/></div>
                 <div className="flex gap-3">
-                  <button type="submit"
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
-                    {editandoImplantacao ? 'Salvar alterações' : 'Adicionar implantação'}
-                  </button>
-                  {editandoImplantacao && (
-                    <button type="button" onClick={() => { setEditandoImplantacao(null); setForm(formImplantacaoVazio) }}
-                      className="px-4 text-gray-400 hover:text-white text-sm rounded-lg border border-gray-700 transition-colors">
-                      Cancelar
-                    </button>
-                  )}
+                  <button type="submit" className="flex-1 font-bold py-2.5 rounded-xl text-sm" style={{backgroundColor:'#19B887',color:'#0F1115'}}>{editandoImp?'Salvar alterações':'Adicionar implantação'}</button>
+                  {editandoImp&&<button type="button" onClick={()=>{setEditandoImp(null);setForm(formImpVazio)}} className="px-4 text-sm rounded-xl" style={{color:'#707985',border:'1px solid #2A303A'}}>Cancelar</button>}
                 </div>
               </form>
             </div>
           </div>
         )}
+
       </main>
+
+      <style>{`
+        @media print {
+          header, nav { display: none !important; }
+          body { background: white !important; color: black !important; }
+        }
+      `}</style>
     </div>
   )
 }
